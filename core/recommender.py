@@ -1,11 +1,12 @@
 """
 Recommender Engine - Core của hệ thống gợi ý
-Version 2.0 - Enhanced với advanced features
+Version 2.1 - Production Ready với Performance Optimization
 """
 
 from typing import List, Tuple, Dict, Set
 import re
 import math
+import time
 from collections import defaultdict
 from .text_processor import TextProcessor
 from .dictionary import Dictionary
@@ -20,12 +21,23 @@ class AdvancedRecommender:
         self.word_frequency: Dict[str, int] = {}
         self.bigram_freq: Dict[Tuple[str, str], int] = {}
         self.trigram_freq: Dict[Tuple[str, str, str], int] = {}
-        self.fourgram_freq: Dict[Tuple[str, str, str, str], int] = {}  # New!
+        self.fourgram_freq: Dict[Tuple[str, str, str, str], int] = {}
+        
+        # Performance optimization features
+        self.recommendation_cache: Dict[str, List[Tuple[str, float, str]]] = {}
+        self.split_cache: Dict[str, List[Tuple[List[str], float]]] = {}
+        self.last_recommendation_time: Dict[str, float] = {}
         
         # Advanced features
-        self.word_embeddings: Dict[str, List[float]] = {}  # Placeholder for embeddings
-        self.user_preferences: Dict[str, float] = {}  # User learning weights
+        self.word_embeddings: Dict[str, List[float]] = {}
+        self.user_preferences: Dict[str, float] = {}
         self.context_cache: Dict[str, List[Tuple[str, float]]] = {}
+        
+        # Performance settings
+        self.max_cache_size = 1000
+        self.cache_timeout = 300  # 5 minutes
+        self.min_debounce_time = 0.1  # 100ms debounce
+        self.max_processing_time = 0.03  # 30ms max processing time
         
         # Performance metrics
         self.prediction_accuracy: Dict[str, float] = {}
@@ -35,9 +47,10 @@ class AdvancedRecommender:
     
     def _build_advanced_frequency_tables(self):
         """
-        Xây dựng bảng tần suất nâng cao với 4-gram
+        Xây dựng bảng tần suất nâng cao với optimization
         """
-        print("Building advanced frequency tables...")
+        print("Building optimized frequency tables...")
+        start_time = time.time()
         
         # Reset counters
         self.word_frequency.clear()
@@ -66,49 +79,89 @@ class AdvancedRecommender:
                 trigram = (words[i], words[i + 1], words[i + 2])
                 self.trigram_freq[trigram] = self.trigram_freq.get(trigram, 0) + 1
             
-            # 4-gram frequency (New!)
-            for i in range(len(words) - 3):
-                fourgram = (words[i], words[i + 1], words[i + 2], words[i + 3])
-                self.fourgram_freq[fourgram] = self.fourgram_freq.get(fourgram, 0) + 1
+            # 4-gram frequency (limited for performance)
+            if len(words) <= 10:  # Only for shorter phrases
+                for i in range(len(words) - 3):
+                    fourgram = (words[i], words[i + 1], words[i + 2], words[i + 3])
+                    self.fourgram_freq[fourgram] = self.fourgram_freq.get(fourgram, 0) + 1
         
-        print(f"Enhanced frequency tables: {len(self.word_frequency)} words, "
+        build_time = time.time() - start_time
+        print(f"Optimized frequency tables built in {build_time:.2f}s: {len(self.word_frequency)} words, "
               f"{len(self.bigram_freq)} bigrams, {len(self.trigram_freq)} trigrams, "
               f"{len(self.fourgram_freq)} 4-grams")
     
-    def advanced_text_splitting(self, text: str) -> List[Tuple[List[str], float]]:
+    def _clean_old_cache(self):
         """
-        Advanced text splitting với dynamic programming và scoring
+        Dọn dẹp cache cũ để tối ưu memory
         """
+        current_time = time.time()
+        
+        # Clean recommendation cache
+        if len(self.recommendation_cache) > self.max_cache_size:
+            # Remove oldest 20% of cache
+            to_remove = len(self.recommendation_cache) // 5
+            oldest_keys = sorted(self.last_recommendation_time.items(), key=lambda x: x[1])[:to_remove]
+            for key, _ in oldest_keys:
+                self.recommendation_cache.pop(key, None)
+                self.last_recommendation_time.pop(key, None)
+        
+        # Clean split cache
+        if len(self.split_cache) > self.max_cache_size:
+            # Keep only most recent half
+            recent_keys = list(self.split_cache.keys())[-self.max_cache_size//2:]
+            new_split_cache = {k: self.split_cache[k] for k in recent_keys}
+            self.split_cache = new_split_cache
+        
+        # Clean context cache
+        if len(self.context_cache) > self.max_cache_size:
+            # Keep only most recent half
+            recent_keys = list(self.context_cache.keys())[-self.max_cache_size//2:]
+            new_context_cache = {k: self.context_cache[k] for k in recent_keys}
+            self.context_cache = new_context_cache
+    
+    def advanced_text_splitting_optimized(self, text: str) -> List[Tuple[List[str], float]]:
+        """
+        Optimized advanced text splitting với timeout và caching
+        """
+        # Check cache first
+        if text in self.split_cache:
+            return self.split_cache[text]
+        
+        start_time = time.time()
         text = text.lower().strip()
         if not text:
             return []
         
+        # Limit processing time for long texts
+        if len(text) > 20:  # For very long texts, use simpler approach
+            return self._simple_text_splitting(text)
+        
         n = len(text)
-        # DP table: dp[i] = [(best_words_from_i, score)]
+        # DP table with timeout
         dp = [[] for _ in range(n + 1)]
         dp[n] = [([], 0.0)]
         
-        # Backwards DP
+        # Backwards DP with timeout
         for i in range(n - 1, -1, -1):
+            # Check timeout
+            if time.time() - start_time > self.max_processing_time:
+                break
+                
             best_score = float('-inf')
             best_words = []
             
-            # Try all possible word lengths from position i
-            for j in range(i + 1, min(i + 15, n + 1)):  # Max word length 15
+            # Try reasonable word lengths (optimized range)
+            max_word_len = min(10, n - i)  # Reduced from 15
+            for j in range(i + 1, i + max_word_len + 1):
                 substring = text[i:j]
                 
-                # Calculate word score
-                word_score = self._calculate_word_score(substring)
+                # Quick word score calculation
+                word_score = self._calculate_word_score_fast(substring)
                 
-                if word_score > 0:  # Valid word
-                    # Get best continuation from position j
+                if word_score > 0:
                     if dp[j]:
                         continuation_words, continuation_score = dp[j][0]
                         total_score = word_score + continuation_score
-                        
-                        # Apply length bonus/penalty
-                        length_bonus = self._calculate_length_bonus(len(substring))
-                        total_score += length_bonus
                         
                         if total_score > best_score:
                             best_score = total_score
@@ -117,113 +170,164 @@ class AdvancedRecommender:
             if best_words:
                 dp[i] = [(best_words, best_score)]
         
-        # Extract multiple solutions
+        # Extract solutions (limited for performance)
         solutions = []
         if dp[0]:
             words, score = dp[0][0]
             solutions.append((words, score))
         
-        # Add alternative splits by trying different starting positions
-        for start_len in range(2, min(8, len(text))):
-            if start_len < len(text):
-                first_part = text[:start_len]
-                remaining = text[start_len:]
-                
-                first_score = self._calculate_word_score(first_part)
-                if first_score > 0:
-                    remaining_splits = self.advanced_text_splitting(remaining)
-                    for remaining_words, remaining_score in remaining_splits[:2]:
-                        total_words = [first_part] + remaining_words
-                        total_score = first_score + remaining_score
-                        solutions.append((total_words, total_score))
+        # Cache result
+        self.split_cache[text] = solutions
+        self._clean_old_cache()
         
-        # Sort by score and return top 5
-        solutions.sort(key=lambda x: x[1], reverse=True)
-        return solutions[:5]
+        return solutions
     
-    def _calculate_word_score(self, word: str) -> float:
+    def _simple_text_splitting(self, text: str) -> List[Tuple[List[str], float]]:
         """
-        Tính điểm cho một từ
+        Simple text splitting for long texts
         """
-        # Check if word exists in dictionary
-        exact_matches = self.dictionary.find_exact_match(word)
-        if exact_matches:
-            base_score = 10.0  # High score for exact match
-            
-            # Add frequency bonus
-            freq_bonus = math.log(self.word_frequency.get(word, 1) + 1)
-            
-            # Add user preference bonus
-            pref_bonus = self.user_preferences.get(word, 0)
-            
-            return base_score + freq_bonus + pref_bonus
+        # Try common breakpoints
+        common_splits = []
         
-        # Check fuzzy matches
-        fuzzy_matches = self.dictionary.find_fuzzy_match(word, threshold=0.8)
-        if fuzzy_matches:
-            best_match, similarity = fuzzy_matches[0]
-            return similarity * 5.0  # Lower score for fuzzy match
+        # Try splitting every 3-6 characters
+        for split_len in [3, 4, 5, 6]:
+            words = []
+            for i in range(0, len(text), split_len):
+                words.append(text[i:i+split_len])
+            if words:
+                score = sum(self._calculate_word_score_fast(w) for w in words)
+                common_splits.append((words, score))
         
-        # Minimum score for very short words
-        if len(word) <= 2:
+        return common_splits[:3] if common_splits else [(list(text), 1.0)]
+    
+    def _calculate_word_score_fast(self, word: str) -> float:
+        """
+        Fast word score calculation
+        """
+        # Quick lookup in word frequency
+        if word in self.word_frequency:
+            return 10.0 + math.log(self.word_frequency[word] + 1)
+        
+        # Check if it's a substring of known words (quick check)
+        for known_word in list(self.word_frequency.keys())[:100]:  # Limit check
+            if word in known_word:
+                return 2.0
+        
+        # Default score based on length
+        if 3 <= len(word) <= 6:
             return 1.0
-        
-        return 0.0  # No match
-    
-    def _calculate_length_bonus(self, length: int) -> float:
-        """
-        Tính bonus dựa trên độ dài từ
-        """
-        if 3 <= length <= 6:
-            return 2.0  # Sweet spot
-        elif 2 <= length <= 8:
-            return 1.0  # Good
-        elif length >= 9:
-            return -1.0  # Too long penalty
+        elif 2 <= len(word) <= 8:
+            return 0.5
         else:
-            return -2.0  # Too short penalty
+            return 0.1
     
-    def enhanced_context_prediction(self, context: List[str], max_predictions: int = 5) -> List[Tuple[str, float]]:
+    def smart_recommend_optimized(self, user_input: str, context: List[str] = None, max_suggestions: int = 8) -> List[Tuple[str, float, str]]:
         """
-        Enhanced context prediction với 4-gram models
+        Optimized smart recommendation với caching và debounce
+        """
+        if not user_input:
+            return []
+        
+        # Create cache key
+        context_key = "_".join(context) if context else ""
+        cache_key = f"{user_input}_{context_key}_{max_suggestions}"
+        
+        # Check cache first
+        current_time = time.time()
+        if cache_key in self.recommendation_cache:
+            # Check if not too old
+            if cache_key in self.last_recommendation_time:
+                if current_time - self.last_recommendation_time[cache_key] < self.cache_timeout:
+                    return self.recommendation_cache[cache_key]
+        
+        start_time = time.time()
+        recommendations = []
+        
+        try:
+            # Strategy 1: Dictionary lookup (optimized)
+            dict_results = self.dictionary.search_comprehensive(user_input, max_results=max_suggestions)
+            for result, confidence, match_type in dict_results[:5]:  # Limit to top 5
+                user_boost = self.user_preferences.get(result, 0) * 0.1
+                adjusted_confidence = min(confidence + user_boost, 1.0)
+                recommendations.append((result, adjusted_confidence, f"dict_{match_type}"))
+            
+            # Strategy 2: Advanced text splitting (with timeout)
+            if len(user_input) >= 4:  # Only for longer inputs
+                split_results = self.advanced_text_splitting_optimized(user_input)
+                for words, score in split_results[:3]:  # Limit to top 3
+                    if len(words) > 1:
+                        phrase = " ".join(words)
+                        normalized_score = min(score / 20.0, 0.95)
+                        recommendations.append((phrase, normalized_score, "advanced_split"))
+            
+            # Strategy 3: Context predictions (optimized)
+            if context and len(recommendations) < max_suggestions:
+                context_preds = self.enhanced_context_prediction_fast(context, max_suggestions // 3)
+                for word, score in context_preds:
+                    if user_input:
+                        combined = f"{user_input} {word}"
+                        recommendations.append((combined, score * 0.7, "context_extend"))
+            
+            # Strategy 4: Pattern matching (quick patterns only)
+            if len(user_input) >= 5:
+                pattern_results = self._pattern_matching_fast(user_input)
+                recommendations.extend(pattern_results[:2])  # Limit to top 2
+            
+        except Exception as e:
+            print(f"Error in recommendation: {e}")
+            # Fallback to simple dictionary search
+            dict_results = self.dictionary.search_comprehensive(user_input, max_results=3)
+            for result, confidence, match_type in dict_results:
+                recommendations.append((result, confidence, f"dict_{match_type}"))
+        
+        # Remove duplicates and sort (optimized)
+        unique_recs = {}
+        for text, confidence, rec_type in recommendations:
+            key = text.lower().strip()
+            if key not in unique_recs or confidence > unique_recs[key][1]:
+                unique_recs[key] = (text, confidence, rec_type)
+        
+        final_recs = list(unique_recs.values())
+        final_recs.sort(key=lambda x: x[1], reverse=True)
+        final_recs = final_recs[:max_suggestions]
+        
+        # Cache result
+        self.recommendation_cache[cache_key] = final_recs
+        self.last_recommendation_time[cache_key] = current_time
+        
+        # Track performance
+        response_time = time.time() - start_time
+        self.response_times.append(response_time)
+        if len(self.response_times) > 100:  # Keep last 100 measurements
+            self.response_times = self.response_times[-100:]
+        
+        return final_recs
+    
+    def enhanced_context_prediction_fast(self, context: List[str], max_predictions: int = 5) -> List[Tuple[str, float]]:
+        """
+        Fast context prediction với caching
         """
         if not context:
             return []
         
-        predictions = defaultdict(float)
-        context_key = " ".join(context[-3:])  # Use last 3 words for caching
+        context_key = " ".join(context[-2:])  # Use last 2 words only for speed
         
         # Check cache first
         if context_key in self.context_cache:
             cached = self.context_cache[context_key]
             return cached[:max_predictions]
         
-        # 4-gram prediction (highest priority)
-        if len(context) >= 3:
-            last_three = tuple(context[-3:])
-            for fourgram, freq in self.fourgram_freq.items():
-                if fourgram[:3] == last_three:
-                    next_word = fourgram[3]
-                    score = freq / max(sum(self.fourgram_freq.values()), 1)
-                    predictions[next_word] += score * 4.0  # High weight
+        predictions = defaultdict(float)
         
-        # Trigram prediction
-        if len(context) >= 2:
-            last_two = tuple(context[-2:])
-            for trigram, freq in self.trigram_freq.items():
-                if trigram[:2] == last_two:
-                    next_word = trigram[2]
-                    score = freq / max(sum(self.trigram_freq.values()), 1)
-                    predictions[next_word] += score * 2.0  # Medium weight
-        
-        # Bigram prediction
+        # Simplified prediction (faster)
+        # Use only bigram for speed
         if context:
             last_word = context[-1]
-            for bigram, freq in self.bigram_freq.items():
+            for bigram, freq in list(self.bigram_freq.items())[:500]:  # Limit iterations
                 if bigram[0] == last_word:
                     next_word = bigram[1]
                     score = freq / max(sum(self.bigram_freq.values()), 1)
-                    predictions[next_word] += score * 1.0  # Lower weight
+                    predictions[next_word] += score
         
         # Convert to list and sort
         prediction_list = [(word, score) for word, score in predictions.items()]
@@ -234,214 +338,90 @@ class AdvancedRecommender:
         
         return prediction_list[:max_predictions]
     
-    def smart_recommend(self, user_input: str, context: List[str] = None, max_suggestions: int = 8) -> List[Tuple[str, float, str]]:
+    def _pattern_matching_fast(self, user_input: str) -> List[Tuple[str, float, str]]:
         """
-        Enhanced smart recommendation với multiple strategies
-        """
-        if not user_input:
-            return []
-        
-        recommendations = []
-        
-        # Strategy 1: Dictionary lookup (exact/fuzzy)
-        dict_results = self.dictionary.search_comprehensive(user_input, max_results=max_suggestions)
-        for result, confidence, match_type in dict_results:
-            # Boost confidence với user preferences
-            user_boost = self.user_preferences.get(result, 0) * 0.1
-            adjusted_confidence = min(confidence + user_boost, 1.0)
-            recommendations.append((result, adjusted_confidence, f"dict_{match_type}"))
-        
-        # Strategy 2: Advanced text splitting
-        split_results = self.advanced_text_splitting(user_input)
-        for words, score in split_results:
-            if len(words) > 1:  # Multi-word phrases
-                phrase = " ".join(words)
-                normalized_score = min(score / 20.0, 0.95)  # Normalize to [0, 0.95]
-                recommendations.append((phrase, normalized_score, "advanced_split"))
-        
-        # Strategy 3: Context-aware predictions
-        if context:
-            # Try combining input with context predictions
-            context_preds = self.enhanced_context_prediction(context, max_suggestions // 2)
-            for word, score in context_preds:
-                # Create combined suggestions
-                if user_input:
-                    # Try input + predicted word
-                    combined1 = f"{user_input} {word}"
-                    recommendations.append((combined1, score * 0.7, "context_extend"))
-                    
-                    # Try predicted word + input (less common but possible)
-                    combined2 = f"{word} {user_input}"
-                    recommendations.append((combined2, score * 0.5, "context_prepend"))
-                else:
-                    recommendations.append((word, score, "context_predict"))
-        
-        # Strategy 4: Pattern matching (new!)
-        pattern_results = self._pattern_matching(user_input)
-        recommendations.extend(pattern_results)
-        
-        # Remove duplicates and sort
-        unique_recs = {}
-        for text, confidence, rec_type in recommendations:
-            key = text.lower().strip()
-            if key not in unique_recs or confidence > unique_recs[key][1]:
-                unique_recs[key] = (text, confidence, rec_type)
-        
-        # Convert back to list and sort by confidence
-        final_recs = list(unique_recs.values())
-        final_recs.sort(key=lambda x: x[1], reverse=True)
-        
-        # Apply final scoring adjustments
-        final_recs = self._apply_final_scoring(final_recs, user_input, context)
-        
-        return final_recs[:max_suggestions]
-    
-    def _pattern_matching(self, user_input: str) -> List[Tuple[str, float, str]]:
-        """
-        Pattern-based matching cho các patterns phổ biến
+        Fast pattern matching với limited patterns
         """
         results = []
         input_lower = user_input.lower()
         
-        # Common patterns
-        patterns = {
-            r'toi.*hoc': ['tôi học', 'tôi đi học', 'tôi học bài'],
-            r'toi.*yeu': ['tôi yêu', 'tôi yêu em', 'tôi yêu bạn'],
-            r'xin.*chao': ['xin chào', 'xin chào mọi người'],
-            r'chuc.*mung': ['chúc mừng', 'chúc mừng sinh nhật', 'chúc mừng năm mới'],
-            r'cam.*on': ['cảm ơn', 'cảm ơn bạn', 'cảm ơn nhiều'],
-            r'xin.*loi': ['xin lỗi', 'xin lỗi nhé'],
-            r'di.*hoc': ['đi học', 'tôi đi học', 'đi học thôi'],
-            r'di.*choi': ['đi chơi', 'đi chơi nào', 'đi chơi thôi'],
-            r'an.*com': ['ăn cơm', 'ăn cơm chưa', 'đi ăn cơm'],
-            r'hom.*nay': ['hôm nay', 'hôm nay thế nào']
+        # Quick patterns only
+        quick_patterns = {
+            r'toi.*hoc': ['tôi học'],
+            r'xin.*chao': ['xin chào'],
+            r'chuc.*mung': ['chúc mừng'],
+            r'cam.*on': ['cảm ơn']
         }
         
-        for pattern, suggestions in patterns.items():
+        for pattern, suggestions in quick_patterns.items():
             if re.search(pattern, input_lower):
                 for suggestion in suggestions:
-                    # Calculate confidence based on input similarity
-                    similarity = self.text_processor.calculate_similarity(input_lower, 
-                                                                        self.text_processor.remove_accents(suggestion))
-                    if similarity > 0.5:
-                        results.append((suggestion, similarity * 0.8, "pattern_match"))
+                    similarity = 0.8  # Fixed similarity for speed
+                    results.append((suggestion, similarity, "pattern_match"))
+                break  # Only match first pattern for speed
         
         return results
     
-    def _apply_final_scoring(self, recommendations: List[Tuple[str, float, str]], 
-                           user_input: str, context: List[str] = None) -> List[Tuple[str, float, str]]:
-        """
-        Apply final scoring adjustments
-        """
-        scored_recs = []
-        
-        for text, confidence, rec_type in recommendations:
-            final_score = confidence
-            
-            # Length-based scoring
-            input_len = len(user_input)
-            text_len = len(self.text_processor.remove_accents(text).replace(" ", ""))
-            
-            if input_len > 0:
-                length_ratio = text_len / input_len
-                if 1.0 <= length_ratio <= 2.0:  # Good length ratio
-                    final_score *= 1.1
-                elif length_ratio > 3.0:  # Too long
-                    final_score *= 0.8
-            
-            # Frequency-based scoring
-            words = self.text_processor.tokenize(text)
-            if words:
-                avg_freq = sum(self.word_frequency.get(word, 1) for word in words) / len(words)
-                freq_boost = min(math.log(avg_freq + 1) * 0.05, 0.2)
-                final_score += freq_boost
-            
-            # Context relevance scoring
-            if context and words:
-                context_relevance = self._calculate_context_relevance(words, context)
-                final_score += context_relevance * 0.1
-            
-            # User preference scoring
-            user_pref = sum(self.user_preferences.get(word, 0) for word in words) / max(len(words), 1)
-            final_score += user_pref * 0.05
-            
-            # Cap the final score
-            final_score = min(final_score, 1.0)
-            
-            scored_recs.append((text, final_score, rec_type))
-        
-        return scored_recs
+    # Backward compatibility methods
+    def smart_recommend(self, user_input: str, context: List[str] = None, max_suggestions: int = 8) -> List[Tuple[str, float, str]]:
+        """Main recommendation method - optimized"""
+        return self.smart_recommend_optimized(user_input, context, max_suggestions)
     
-    def _calculate_context_relevance(self, words: List[str], context: List[str]) -> float:
-        """
-        Calculate how relevant words are to the given context
-        """
-        if not context or not words:
-            return 0.0
-        
-        relevance = 0.0
-        
-        # Check for bigram/trigram matches with context
-        for i, word in enumerate(words):
-            # Check if word appears in context
-            if word in context:
-                relevance += 1.0
-            
-            # Check bigram matches
-            if context:
-                last_context_word = context[-1]
-                if (last_context_word, word) in self.bigram_freq:
-                    relevance += 2.0
-        
-        return relevance / len(words)
+    def advanced_text_splitting(self, text: str) -> List[Tuple[List[str], float]]:
+        """Backward compatibility method"""
+        return self.advanced_text_splitting_optimized(text)
+    
+    def enhanced_context_prediction(self, context: List[str], max_predictions: int = 5) -> List[Tuple[str, float]]:
+        """Backward compatibility method"""
+        return self.enhanced_context_prediction_fast(context, max_predictions)
     
     def update_user_preferences(self, chosen_text: str, context: List[str] = None):
         """
-        Enhanced user learning với preference tracking
+        Optimized user learning
         """
         words = self.text_processor.tokenize(chosen_text)
         
-        # Update word frequencies
+        # Quick updates only
         for word in words:
             self.word_frequency[word] = self.word_frequency.get(word, 0) + 1
-            # Update user preferences (positive reinforcement)
             self.user_preferences[word] = self.user_preferences.get(word, 0) + 0.1
         
-        # Update n-gram frequencies
+        # Update only bigrams for speed
         for i in range(len(words) - 1):
             bigram = (words[i], words[i + 1])
             self.bigram_freq[bigram] = self.bigram_freq.get(bigram, 0) + 1
         
-        for i in range(len(words) - 2):
-            trigram = (words[i], words[i + 1], words[i + 2])
-            self.trigram_freq[trigram] = self.trigram_freq.get(trigram, 0) + 1
+        # Clear relevant caches
+        keys_to_remove = [k for k in self.recommendation_cache.keys() if chosen_text.lower() in k.lower()]
+        for key in keys_to_remove[:10]:  # Limit cleanup
+            self.recommendation_cache.pop(key, None)
+            self.last_recommendation_time.pop(key, None)
+    
+    def get_performance_stats(self) -> Dict[str, any]:
+        """
+        Get performance statistics
+        """
+        avg_response_time = sum(self.response_times) / max(len(self.response_times), 1)
         
-        for i in range(len(words) - 3):
-            fourgram = (words[i], words[i + 1], words[i + 2], words[i + 3])
-            self.fourgram_freq[fourgram] = self.fourgram_freq.get(fourgram, 0) + 1
-        
-        # Update context-based learning
-        if context and words:
-            # Learn context transitions
-            last_context_word = context[-1] if context else None
-            if last_context_word:
-                bigram = (last_context_word, words[0])
-                self.bigram_freq[bigram] = self.bigram_freq.get(bigram, 0) + 1
-        
-        # Add to dictionary if not exists
-        if len(words) == 1:
-            self.dictionary.add_word(chosen_text)
-        else:
-            self.dictionary.add_phrase(chosen_text)
-        
-        # Clear cache to force refresh
-        self.context_cache.clear()
+        return {
+            "avg_response_time_ms": avg_response_time * 1000,
+            "cache_sizes": {
+                "recommendations": len(self.recommendation_cache),
+                "splits": len(self.split_cache),
+                "context": len(self.context_cache)
+            },
+            "performance_settings": {
+                "max_processing_time_ms": self.max_processing_time * 1000,
+                "min_debounce_time_ms": self.min_debounce_time * 1000,
+                "cache_timeout_s": self.cache_timeout
+            }
+        }
     
     def get_statistics(self) -> Dict[str, any]:
         """
-        Get detailed statistics about the recommender
+        Enhanced statistics with performance data
         """
-        return {
+        base_stats = {
             "word_count": len(self.word_frequency),
             "bigram_count": len(self.bigram_freq),
             "trigram_count": len(self.trigram_freq),
@@ -452,6 +432,11 @@ class AdvancedRecommender:
             "top_words": sorted(self.word_frequency.items(), key=lambda x: x[1], reverse=True)[:10],
             "top_preferences": sorted(self.user_preferences.items(), key=lambda x: x[1], reverse=True)[:10]
         }
+        
+        # Add performance stats
+        base_stats.update(self.get_performance_stats())
+        
+        return base_stats
 
 
 # Backward compatibility - create alias

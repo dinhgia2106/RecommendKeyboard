@@ -1,0 +1,15 @@
+# Vietnamese Keyboard v2.1 - Production Ready
+# Core requirements for production deployment
+
+# UI Framework
+tkinter (built-in with Python)
+
+# Performance Monitoring (optional)
+psutil>=5.9.0
+
+# Development/Testing (optional)
+pytest>=7.0.0
+
+# Future extensions
+# numpy>=1.21.0 (for advanced ML features)
+# tensorflow>=2.8.0 (for neural language models)
