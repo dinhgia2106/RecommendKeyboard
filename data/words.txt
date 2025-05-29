@@ -124,4 +124,270 @@ tháng trước
 tháng sau
 năm nay
 năm trước
-năm sau 
+năm sau
+đẹp
+xấu
+tốt
+kém
+to
+nhỏ
+cao
+thấp
+dài
+ngắn
+rộng
+hẹp
+mới
+cũ
+trẻ
+già
+nhanh
+chậm
+sớm
+muộn
+nhiều
+ít
+đủ
+thiếu
+đầy
+rỗng
+sạch
+bẩn
+đúng
+sai
+tốt
+xấu
+dễ
+khó
+vui
+buồn
+hạnh phúc
+khổ đau
+thành công
+thất bại
+giàu
+nghèo
+mạnh
+yếu
+khỏe
+ốm
+thông minh
+ngu ngốc
+siêng năng
+lười biếng
+tử tế
+xấu xa
+em
+anh
+chị
+ông
+bà
+cô
+chú
+dì
+cậu
+con
+bố
+mẹ
+vợ
+chồng
+con trai
+con gái
+cháu
+cưng
+yêu thương
+quan tâm
+chăm sóc
+giúp đỡ
+hỗ trợ
+chia sẻ
+thảo luận
+nói chuyện
+trò chuyện
+gặp gỡ
+hẹn hò
+kết bạn
+làm quen
+giới thiệu
+chào hỏi
+tạm biệt
+cảm ơn
+xin lỗi
+chúc mừng
+chúc tụng
+ước muốn
+mong đợi
+hi vọng
+tin tưởng
+yêu mến
+kính trọng
+tôn trọng
+ngưỡng mộ
+thán phục
+ấn tượng
+hài lòng
+thích thú
+thú vị
+hấp dẫn
+lôi cuốn
+bí ẩn
+thần bí
+kỳ lạ
+đặc biệt
+độc đáo
+hiếm có
+quý giá
+có ích
+hữu ích
+cần thiết
+quan trọng
+thiết yếu
+cơ bản
+đơn giản
+phức tạp
+rắc rối
+khó khăn
+dễ dàng
+tiện lợi
+thoải mái
+thuận tiện
+nhanh chóng
+tức thì
+ngay lập tức
+chậm chạp
+từ từ
+cẩn thận
+thận trọng
+chú ý
+tập trung
+cố gắng
+nỗ lực
+phấn đấu
+chiến đấu
+đấu tranh
+cạnh tranh
+ganh đua
+thi đua
+thi tài
+thể hiện
+biểu diễn
+trình bày
+giới thiệu
+thuyết trình
+báo cáo
+kể chuyện
+kể lại
+nhắc lại
+lặp lại
+nhắc nhở
+nhắn nhủ
+dặn dò
+khuyên bảo
+chỉ dẫn
+hướng dẫn
+dạy học
+giảng dạy
+truyền đạt
+học hỏi
+nghiên cứu
+tìm hiểu
+khám phá
+phát hiện
+sáng tạo
+đổi mới
+cải tiến
+phát triển
+tiến bộ
+thành đạt
+thành tựu
+kết quả
+thành quả
+hiệu quả
+tác dụng
+ảnh hưởng
+tác động
+thay đổi
+biến đổi
+chuyển biến
+chuyển đổi
+thích nghi
+thích ứng
+thích hợp
+phù hợp
+hợp lý
+đúng đắn
+chính xác
+chính đáng
+công bằng
+công bình
+công lý
+chính nghĩa
+đạo đức
+nhân phẩm
+phẩm chất
+tính cách
+cá tính
+đặc điểm
+đặc trưng
+nét đẹp
+vẻ đẹp
+xinh đẹp
+dễ thương
+đáng yêu
+ngộ nghĩnh
+hài hước
+vui nhộn
+thú vị
+sinh động
+sôi động
+tích cực
+tích cực
+tiêu cực
+lạc quan
+bi quan
+hy vọng
+tuyệt vọng
+tin cậy
+nghi ngờ
+chắc chắn
+không chắc
+có thể
+không thể
+chắc là
+có lẽ
+chắc hẳn
+tất nhiên
+dĩ nhiên
+hiển nhiên
+rõ ràng
+rõ ràng
+mơ hồ
+không rõ
+mình
+ta
+chúng ta
+chúng tôi
+họ
+nó
+đó
+này
+kia
+thế
+vậy
+thôi
+nhé
+đấy
+mà
+nha
+đi
+vào
+ra
+lên
+xuống
+sang
+qua
+tới
+đến
+về
+từ
+bằng 

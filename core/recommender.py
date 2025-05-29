@@ -1,33 +1,56 @@
 """
 Recommender Engine - Core của hệ thống gợi ý
+Version 2.0 - Enhanced với advanced features
 """
 
 from typing import List, Tuple, Dict, Set
+import re
+import math
+from collections import defaultdict
 from .text_processor import TextProcessor
 from .dictionary import Dictionary
 
 
-class Recommender:
+class AdvancedRecommender:
     def __init__(self, data_dir: str = "data"):
         self.text_processor = TextProcessor()
         self.dictionary = Dictionary(data_dir)
         
-        # Frequency của các từ (để ranking)
+        # Enhanced frequency tracking
         self.word_frequency: Dict[str, int] = {}
-        
-        # Context tracking để dự đoán từ tiếp theo
         self.bigram_freq: Dict[Tuple[str, str], int] = {}
         self.trigram_freq: Dict[Tuple[str, str, str], int] = {}
+        self.fourgram_freq: Dict[Tuple[str, str, str, str], int] = {}  # New!
         
-        self._build_frequency_tables()
+        # Advanced features
+        self.word_embeddings: Dict[str, List[float]] = {}  # Placeholder for embeddings
+        self.user_preferences: Dict[str, float] = {}  # User learning weights
+        self.context_cache: Dict[str, List[Tuple[str, float]]] = {}
+        
+        # Performance metrics
+        self.prediction_accuracy: Dict[str, float] = {}
+        self.response_times: List[float] = []
+        
+        self._build_advanced_frequency_tables()
     
-    def _build_frequency_tables(self):
+    def _build_advanced_frequency_tables(self):
         """
-        Xây dựng bảng tần suất từ dữ liệu có sẵn
+        Xây dựng bảng tần suất nâng cao với 4-gram
         """
-        # Xây dựng frequency từ phrases
-        for phrase in self.dictionary.phrases:
-            words = self.text_processor.tokenize(phrase)
+        print("Building advanced frequency tables...")
+        
+        # Reset counters
+        self.word_frequency.clear()
+        self.bigram_freq.clear()
+        self.trigram_freq.clear()
+        self.fourgram_freq.clear()
+        
+        all_texts = list(self.dictionary.phrases) + list(self.dictionary.words)
+        
+        for text in all_texts:
+            words = self.text_processor.tokenize(text)
+            if not words:
+                continue
             
             # Unigram frequency
             for word in words:
@@ -42,257 +65,433 @@ class Recommender:
             for i in range(len(words) - 2):
                 trigram = (words[i], words[i + 1], words[i + 2])
                 self.trigram_freq[trigram] = self.trigram_freq.get(trigram, 0) + 1
+            
+            # 4-gram frequency (New!)
+            for i in range(len(words) - 3):
+                fourgram = (words[i], words[i + 1], words[i + 2], words[i + 3])
+                self.fourgram_freq[fourgram] = self.fourgram_freq.get(fourgram, 0) + 1
         
-        print(f"Built frequency tables: {len(self.word_frequency)} words, "
-              f"{len(self.bigram_freq)} bigrams, {len(self.trigram_freq)} trigrams")
+        print(f"Enhanced frequency tables: {len(self.word_frequency)} words, "
+              f"{len(self.bigram_freq)} bigrams, {len(self.trigram_freq)} trigrams, "
+              f"{len(self.fourgram_freq)} 4-grams")
     
-    def split_continuous_text(self, text: str) -> List[List[str]]:
+    def advanced_text_splitting(self, text: str) -> List[Tuple[List[str], float]]:
         """
-        Tách văn bản liên tục thành các từ có thể
-        Ví dụ: "xinchaomoinguoi" -> [["xin", "chao", "moi", "nguoi"], ["xinchao", "moinguoi"], ...]
+        Advanced text splitting với dynamic programming và scoring
         """
         text = text.lower().strip()
         if not text:
             return []
         
-        # Dynamic programming để tìm cách tách tốt nhất
-        def find_best_splits(s: str, start: int = 0, memo: Dict = None) -> List[List[str]]:
-            if memo is None:
-                memo = {}
+        n = len(text)
+        # DP table: dp[i] = [(best_words_from_i, score)]
+        dp = [[] for _ in range(n + 1)]
+        dp[n] = [([], 0.0)]
+        
+        # Backwards DP
+        for i in range(n - 1, -1, -1):
+            best_score = float('-inf')
+            best_words = []
             
-            if start == len(s):
-                return [[]]
-            
-            if start in memo:
-                return memo[start]
-            
-            results = []
-            
-            # Thử tất cả các substring từ vị trí hiện tại
-            for end in range(start + 1, len(s) + 1):
-                substring = s[start:end]
+            # Try all possible word lengths from position i
+            for j in range(i + 1, min(i + 15, n + 1)):  # Max word length 15
+                substring = text[i:j]
                 
-                # Kiểm tra xem substring có trong từ điển không
-                matches = self.dictionary.find_exact_match(substring)
-                if matches or len(substring) <= 3:  # Cho phép từ ngắn
-                    # Đệ quy với phần còn lại
-                    remaining_splits = find_best_splits(s, end, memo)
-                    for split in remaining_splits:
-                        # Chọn từ tốt nhất từ matches hoặc substring gốc
-                        best_word = matches[0] if matches else substring
-                        results.append([best_word] + split)
+                # Calculate word score
+                word_score = self._calculate_word_score(substring)
+                
+                if word_score > 0:  # Valid word
+                    # Get best continuation from position j
+                    if dp[j]:
+                        continuation_words, continuation_score = dp[j][0]
+                        total_score = word_score + continuation_score
+                        
+                        # Apply length bonus/penalty
+                        length_bonus = self._calculate_length_bonus(len(substring))
+                        total_score += length_bonus
+                        
+                        if total_score > best_score:
+                            best_score = total_score
+                            best_words = [substring] + continuation_words
             
-            memo[start] = results
-            return results
+            if best_words:
+                dp[i] = [(best_words, best_score)]
         
-        # Lấy tất cả các cách tách có thể
-        all_splits = find_best_splits(text)
+        # Extract multiple solutions
+        solutions = []
+        if dp[0]:
+            words, score = dp[0][0]
+            solutions.append((words, score))
         
-        # Lọc và sắp xếp theo độ tin cậy
-        scored_splits = []
-        for split in all_splits:
-            score = self._calculate_split_score(split)
-            scored_splits.append((split, score))
+        # Add alternative splits by trying different starting positions
+        for start_len in range(2, min(8, len(text))):
+            if start_len < len(text):
+                first_part = text[:start_len]
+                remaining = text[start_len:]
+                
+                first_score = self._calculate_word_score(first_part)
+                if first_score > 0:
+                    remaining_splits = self.advanced_text_splitting(remaining)
+                    for remaining_words, remaining_score in remaining_splits[:2]:
+                        total_words = [first_part] + remaining_words
+                        total_score = first_score + remaining_score
+                        solutions.append((total_words, total_score))
         
-        # Sắp xếp theo score giảm dần
-        scored_splits.sort(key=lambda x: x[1], reverse=True)
-        
-        # Trả về top 5 splits
-        return [split for split, score in scored_splits[:5]]
+        # Sort by score and return top 5
+        solutions.sort(key=lambda x: x[1], reverse=True)
+        return solutions[:5]
     
-    def _calculate_split_score(self, words: List[str]) -> float:
+    def _calculate_word_score(self, word: str) -> float:
         """
-        Tính điểm cho một cách tách từ
+        Tính điểm cho một từ
         """
-        if not words:
-            return 0.0
-        
-        score = 0.0
-        
-        # Điểm dựa trên frequency của từ
-        for word in words:
-            word_score = self.word_frequency.get(word, 0)
-            score += word_score
-        
-        # Điểm dựa trên bigram
-        for i in range(len(words) - 1):
-            bigram = (words[i], words[i + 1])
-            bigram_score = self.bigram_freq.get(bigram, 0)
-            score += bigram_score * 2  # Bigram quan trọng hơn
-        
-        # Penalty cho từ quá ngắn hoặc quá dài
-        avg_length = sum(len(word) for word in words) / len(words)
-        if avg_length < 2:
-            score *= 0.5
-        elif avg_length > 8:
-            score *= 0.8
-        
-        # Bonus cho số từ hợp lý
-        if 2 <= len(words) <= 4:
-            score *= 1.2
-        
-        return score
-    
-    def recommend_from_input(self, user_input: str, max_suggestions: int = 5) -> List[Tuple[str, float]]:
-        """
-        Gợi ý từ input của user
-        """
-        if not user_input:
-            return []
-        
-        suggestions = []
-        
-        # 1. Tìm exact matches và fuzzy matches
-        search_results = self.dictionary.search_comprehensive(user_input, max_results=max_suggestions * 2)
-        
-        for result, confidence, match_type in search_results:
-            # Adjust confidence based on match type
-            adjusted_confidence = confidence
-            if match_type == "exact":
-                adjusted_confidence = 1.0
-            elif match_type == "prefix":
-                adjusted_confidence = 0.9
-            elif match_type == "fuzzy":
-                adjusted_confidence = confidence * 0.8
-            else:  # contains
-                adjusted_confidence = confidence * 0.6
+        # Check if word exists in dictionary
+        exact_matches = self.dictionary.find_exact_match(word)
+        if exact_matches:
+            base_score = 10.0  # High score for exact match
             
-            suggestions.append((result, adjusted_confidence))
+            # Add frequency bonus
+            freq_bonus = math.log(self.word_frequency.get(word, 1) + 1)
+            
+            # Add user preference bonus
+            pref_bonus = self.user_preferences.get(word, 0)
+            
+            return base_score + freq_bonus + pref_bonus
         
-        # 2. Thử tách văn bản liên tục
-        splits = self.split_continuous_text(user_input)
-        for split in splits:
-            if len(split) > 1:  # Chỉ quan tâm đến cụm từ
-                phrase = " ".join(split)
-                split_score = self._calculate_split_score(split)
-                # Normalize split score
-                normalized_score = min(split_score / 100.0, 0.95)
-                suggestions.append((phrase, normalized_score))
+        # Check fuzzy matches
+        fuzzy_matches = self.dictionary.find_fuzzy_match(word, threshold=0.8)
+        if fuzzy_matches:
+            best_match, similarity = fuzzy_matches[0]
+            return similarity * 5.0  # Lower score for fuzzy match
         
-        # 3. Loại bỏ duplicate và sắp xếp
-        unique_suggestions = {}
-        for suggestion, confidence in suggestions:
-            if suggestion not in unique_suggestions or confidence > unique_suggestions[suggestion]:
-                unique_suggestions[suggestion] = confidence
+        # Minimum score for very short words
+        if len(word) <= 2:
+            return 1.0
         
-        # Chuyển về list và sắp xếp
-        final_suggestions = [(text, conf) for text, conf in unique_suggestions.items()]
-        final_suggestions.sort(key=lambda x: x[1], reverse=True)
-        
-        return final_suggestions[:max_suggestions]
+        return 0.0  # No match
     
-    def predict_next_word(self, context: List[str], max_predictions: int = 3) -> List[Tuple[str, float]]:
+    def _calculate_length_bonus(self, length: int) -> float:
         """
-        Dự đoán từ tiếp theo dựa trên context
+        Tính bonus dựa trên độ dài từ
+        """
+        if 3 <= length <= 6:
+            return 2.0  # Sweet spot
+        elif 2 <= length <= 8:
+            return 1.0  # Good
+        elif length >= 9:
+            return -1.0  # Too long penalty
+        else:
+            return -2.0  # Too short penalty
+    
+    def enhanced_context_prediction(self, context: List[str], max_predictions: int = 5) -> List[Tuple[str, float]]:
+        """
+        Enhanced context prediction với 4-gram models
         """
         if not context:
             return []
         
-        predictions = {}
+        predictions = defaultdict(float)
+        context_key = " ".join(context[-3:])  # Use last 3 words for caching
         
-        # Sử dụng trigram nếu có đủ context
+        # Check cache first
+        if context_key in self.context_cache:
+            cached = self.context_cache[context_key]
+            return cached[:max_predictions]
+        
+        # 4-gram prediction (highest priority)
+        if len(context) >= 3:
+            last_three = tuple(context[-3:])
+            for fourgram, freq in self.fourgram_freq.items():
+                if fourgram[:3] == last_three:
+                    next_word = fourgram[3]
+                    score = freq / max(sum(self.fourgram_freq.values()), 1)
+                    predictions[next_word] += score * 4.0  # High weight
+        
+        # Trigram prediction
         if len(context) >= 2:
-            last_two = (context[-2], context[-1])
+            last_two = tuple(context[-2:])
             for trigram, freq in self.trigram_freq.items():
                 if trigram[:2] == last_two:
                     next_word = trigram[2]
-                    score = freq / sum(self.trigram_freq.values())
-                    predictions[next_word] = predictions.get(next_word, 0) + score
+                    score = freq / max(sum(self.trigram_freq.values()), 1)
+                    predictions[next_word] += score * 2.0  # Medium weight
         
-        # Sử dụng bigram
+        # Bigram prediction
         if context:
             last_word = context[-1]
             for bigram, freq in self.bigram_freq.items():
                 if bigram[0] == last_word:
                     next_word = bigram[1]
-                    score = freq / sum(self.bigram_freq.values())
-                    predictions[next_word] = predictions.get(next_word, 0) + score * 0.7
+                    score = freq / max(sum(self.bigram_freq.values()), 1)
+                    predictions[next_word] += score * 1.0  # Lower weight
         
-        # Chuyển về list và sắp xếp
+        # Convert to list and sort
         prediction_list = [(word, score) for word, score in predictions.items()]
         prediction_list.sort(key=lambda x: x[1], reverse=True)
         
+        # Cache result
+        self.context_cache[context_key] = prediction_list
+        
         return prediction_list[:max_predictions]
     
-    def recommend_smart(self, user_input: str, context: List[str] = None, max_suggestions: int = 5) -> List[Tuple[str, float, str]]:
+    def smart_recommend(self, user_input: str, context: List[str] = None, max_suggestions: int = 8) -> List[Tuple[str, float, str]]:
         """
-        Gợi ý thông minh kết hợp nhiều phương pháp
+        Enhanced smart recommendation với multiple strategies
         """
+        if not user_input:
+            return []
+        
         recommendations = []
         
-        # 1. Recommendations từ input
-        input_recs = self.recommend_from_input(user_input, max_suggestions)
-        for text, confidence in input_recs:
-            recommendations.append((text, confidence, "input_based"))
+        # Strategy 1: Dictionary lookup (exact/fuzzy)
+        dict_results = self.dictionary.search_comprehensive(user_input, max_results=max_suggestions)
+        for result, confidence, match_type in dict_results:
+            # Boost confidence với user preferences
+            user_boost = self.user_preferences.get(result, 0) * 0.1
+            adjusted_confidence = min(confidence + user_boost, 1.0)
+            recommendations.append((result, adjusted_confidence, f"dict_{match_type}"))
         
-        # 2. Predictions từ context (nếu có)
+        # Strategy 2: Advanced text splitting
+        split_results = self.advanced_text_splitting(user_input)
+        for words, score in split_results:
+            if len(words) > 1:  # Multi-word phrases
+                phrase = " ".join(words)
+                normalized_score = min(score / 20.0, 0.95)  # Normalize to [0, 0.95]
+                recommendations.append((phrase, normalized_score, "advanced_split"))
+        
+        # Strategy 3: Context-aware predictions
         if context:
-            context_preds = self.predict_next_word(context, max_suggestions // 2)
+            # Try combining input with context predictions
+            context_preds = self.enhanced_context_prediction(context, max_suggestions // 2)
             for word, score in context_preds:
-                # Combine với input nếu có
+                # Create combined suggestions
                 if user_input:
-                    combined = f"{user_input} {word}"
-                    recommendations.append((combined, score * 0.8, "context_pred"))
+                    # Try input + predicted word
+                    combined1 = f"{user_input} {word}"
+                    recommendations.append((combined1, score * 0.7, "context_extend"))
+                    
+                    # Try predicted word + input (less common but possible)
+                    combined2 = f"{word} {user_input}"
+                    recommendations.append((combined2, score * 0.5, "context_prepend"))
                 else:
-                    recommendations.append((word, score, "context_pred"))
+                    recommendations.append((word, score, "context_predict"))
         
-        # 3. Loại bỏ duplicate và sắp xếp
+        # Strategy 4: Pattern matching (new!)
+        pattern_results = self._pattern_matching(user_input)
+        recommendations.extend(pattern_results)
+        
+        # Remove duplicates and sort
         unique_recs = {}
         for text, confidence, rec_type in recommendations:
             key = text.lower().strip()
             if key not in unique_recs or confidence > unique_recs[key][1]:
                 unique_recs[key] = (text, confidence, rec_type)
         
-        # Chuyển về list và sắp xếp
+        # Convert back to list and sort by confidence
         final_recs = list(unique_recs.values())
         final_recs.sort(key=lambda x: x[1], reverse=True)
         
+        # Apply final scoring adjustments
+        final_recs = self._apply_final_scoring(final_recs, user_input, context)
+        
         return final_recs[:max_suggestions]
     
-    def update_user_choice(self, chosen_text: str, context: List[str] = None):
+    def _pattern_matching(self, user_input: str) -> List[Tuple[str, float, str]]:
         """
-        Cập nhật model dựa trên lựa chọn của user (learning)
+        Pattern-based matching cho các patterns phổ biến
         """
-        # Thêm vào từ điển nếu chưa có
+        results = []
+        input_lower = user_input.lower()
+        
+        # Common patterns
+        patterns = {
+            r'toi.*hoc': ['tôi học', 'tôi đi học', 'tôi học bài'],
+            r'toi.*yeu': ['tôi yêu', 'tôi yêu em', 'tôi yêu bạn'],
+            r'xin.*chao': ['xin chào', 'xin chào mọi người'],
+            r'chuc.*mung': ['chúc mừng', 'chúc mừng sinh nhật', 'chúc mừng năm mới'],
+            r'cam.*on': ['cảm ơn', 'cảm ơn bạn', 'cảm ơn nhiều'],
+            r'xin.*loi': ['xin lỗi', 'xin lỗi nhé'],
+            r'di.*hoc': ['đi học', 'tôi đi học', 'đi học thôi'],
+            r'di.*choi': ['đi chơi', 'đi chơi nào', 'đi chơi thôi'],
+            r'an.*com': ['ăn cơm', 'ăn cơm chưa', 'đi ăn cơm'],
+            r'hom.*nay': ['hôm nay', 'hôm nay thế nào']
+        }
+        
+        for pattern, suggestions in patterns.items():
+            if re.search(pattern, input_lower):
+                for suggestion in suggestions:
+                    # Calculate confidence based on input similarity
+                    similarity = self.text_processor.calculate_similarity(input_lower, 
+                                                                        self.text_processor.remove_accents(suggestion))
+                    if similarity > 0.5:
+                        results.append((suggestion, similarity * 0.8, "pattern_match"))
+        
+        return results
+    
+    def _apply_final_scoring(self, recommendations: List[Tuple[str, float, str]], 
+                           user_input: str, context: List[str] = None) -> List[Tuple[str, float, str]]:
+        """
+        Apply final scoring adjustments
+        """
+        scored_recs = []
+        
+        for text, confidence, rec_type in recommendations:
+            final_score = confidence
+            
+            # Length-based scoring
+            input_len = len(user_input)
+            text_len = len(self.text_processor.remove_accents(text).replace(" ", ""))
+            
+            if input_len > 0:
+                length_ratio = text_len / input_len
+                if 1.0 <= length_ratio <= 2.0:  # Good length ratio
+                    final_score *= 1.1
+                elif length_ratio > 3.0:  # Too long
+                    final_score *= 0.8
+            
+            # Frequency-based scoring
+            words = self.text_processor.tokenize(text)
+            if words:
+                avg_freq = sum(self.word_frequency.get(word, 1) for word in words) / len(words)
+                freq_boost = min(math.log(avg_freq + 1) * 0.05, 0.2)
+                final_score += freq_boost
+            
+            # Context relevance scoring
+            if context and words:
+                context_relevance = self._calculate_context_relevance(words, context)
+                final_score += context_relevance * 0.1
+            
+            # User preference scoring
+            user_pref = sum(self.user_preferences.get(word, 0) for word in words) / max(len(words), 1)
+            final_score += user_pref * 0.05
+            
+            # Cap the final score
+            final_score = min(final_score, 1.0)
+            
+            scored_recs.append((text, final_score, rec_type))
+        
+        return scored_recs
+    
+    def _calculate_context_relevance(self, words: List[str], context: List[str]) -> float:
+        """
+        Calculate how relevant words are to the given context
+        """
+        if not context or not words:
+            return 0.0
+        
+        relevance = 0.0
+        
+        # Check for bigram/trigram matches with context
+        for i, word in enumerate(words):
+            # Check if word appears in context
+            if word in context:
+                relevance += 1.0
+            
+            # Check bigram matches
+            if context:
+                last_context_word = context[-1]
+                if (last_context_word, word) in self.bigram_freq:
+                    relevance += 2.0
+        
+        return relevance / len(words)
+    
+    def update_user_preferences(self, chosen_text: str, context: List[str] = None):
+        """
+        Enhanced user learning với preference tracking
+        """
         words = self.text_processor.tokenize(chosen_text)
         
-        # Cập nhật word frequency
+        # Update word frequencies
         for word in words:
             self.word_frequency[word] = self.word_frequency.get(word, 0) + 1
+            # Update user preferences (positive reinforcement)
+            self.user_preferences[word] = self.user_preferences.get(word, 0) + 0.1
         
-        # Cập nhật bigram frequency
+        # Update n-gram frequencies
         for i in range(len(words) - 1):
             bigram = (words[i], words[i + 1])
             self.bigram_freq[bigram] = self.bigram_freq.get(bigram, 0) + 1
         
-        # Nếu có context, cập nhật với context
+        for i in range(len(words) - 2):
+            trigram = (words[i], words[i + 1], words[i + 2])
+            self.trigram_freq[trigram] = self.trigram_freq.get(trigram, 0) + 1
+        
+        for i in range(len(words) - 3):
+            fourgram = (words[i], words[i + 1], words[i + 2], words[i + 3])
+            self.fourgram_freq[fourgram] = self.fourgram_freq.get(fourgram, 0) + 1
+        
+        # Update context-based learning
         if context and words:
+            # Learn context transitions
             last_context_word = context[-1] if context else None
             if last_context_word:
                 bigram = (last_context_word, words[0])
                 self.bigram_freq[bigram] = self.bigram_freq.get(bigram, 0) + 1
         
-        # Thêm vào từ điển
+        # Add to dictionary if not exists
         if len(words) == 1:
             self.dictionary.add_word(chosen_text)
         else:
             self.dictionary.add_phrase(chosen_text)
+        
+        # Clear cache to force refresh
+        self.context_cache.clear()
+    
+    def get_statistics(self) -> Dict[str, any]:
+        """
+        Get detailed statistics about the recommender
+        """
+        return {
+            "word_count": len(self.word_frequency),
+            "bigram_count": len(self.bigram_freq),
+            "trigram_count": len(self.trigram_freq),
+            "fourgram_count": len(self.fourgram_freq),
+            "user_preferences": len(self.user_preferences),
+            "cache_size": len(self.context_cache),
+            "dictionary_stats": self.dictionary.get_stats(),
+            "top_words": sorted(self.word_frequency.items(), key=lambda x: x[1], reverse=True)[:10],
+            "top_preferences": sorted(self.user_preferences.items(), key=lambda x: x[1], reverse=True)[:10]
+        }
+
+
+# Backward compatibility - create alias
+class Recommender(AdvancedRecommender):
+    """Backward compatibility alias"""
+    
+    def recommend_smart(self, user_input: str, context: List[str] = None, max_suggestions: int = 5) -> List[Tuple[str, float, str]]:
+        """Backward compatibility method"""
+        return self.smart_recommend(user_input, context, max_suggestions)
+    
+    def update_user_choice(self, chosen_text: str, context: List[str] = None):
+        """Backward compatibility method"""
+        return self.update_user_preferences(chosen_text, context)
 
 
 if __name__ == "__main__":
-    # Test Recommender
-    recommender = Recommender()
+    # Test Advanced Recommender
+    recommender = AdvancedRecommender()
+    
+    print("=== ADVANCED RECOMMENDER TEST ===")
+    print(f"Statistics: {recommender.get_statistics()}")
     
     test_cases = [
         "xinchao",
-        "toihoc",
-        "moinguoi",
-        "xinchaomoinguoi",
-        "chucmung"
+        "toihoctiengviet",
+        "anhyeuem",
+        "chucmungnamoi",
+        "camonnhieu"
     ]
     
     for test in test_cases:
         print(f"\nInput: '{test}'")
-        recommendations = recommender.recommend_smart(test, max_suggestions=3)
+        recommendations = recommender.smart_recommend(test, max_suggestions=3)
         for i, (text, confidence, rec_type) in enumerate(recommendations, 1):
-            print(f"  {i}. {text} (confidence: {confidence:.3f}, type: {rec_type})") 
+            print(f"  {i}. {text} (confidence: {confidence:.3f}, type: {rec_type})")
+            
+        # Simulate user choosing first recommendation
+        if recommendations:
+            chosen = recommendations[0][0]
+            recommender.update_user_preferences(chosen)
+            print(f"  → User chose: '{chosen}'")
+    
+    print(f"\nFinal statistics: {recommender.get_statistics()}") 

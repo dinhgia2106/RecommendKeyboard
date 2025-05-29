@@ -163,4 +163,230 @@ tháng trước
 tháng sau
 năm nay
 năm trước
-năm sau 
+năm sau
+tôi yêu em
+anh yêu em
+em yêu anh
+anh nhớ em
+em nhớ anh
+tôi nhớ mẹ
+tôi nhớ bố
+tôi nhớ nhà
+anh là ai
+em là ai
+bạn là ai
+tôi là ai
+đây là gì
+đó là gì
+kia là gì
+đây là đâu
+đó là đâu
+kia là đâu
+bao giờ thế
+khi nào thế
+tại sao thế
+làm sao thế
+như thế nào
+thế này
+thế kia
+như này
+như kia
+như vậy
+thế thôi
+vậy thôi
+được rồi
+không sao
+không có gì
+không gì cả
+tôi không biết
+tôi không hiểu
+tôi không nhớ
+tôi không thích
+tôi không muốn
+tôi không thể
+bạn có thể
+em có thể
+anh có thể
+chúng ta có thể
+họ có thể
+có thể không
+có thể được
+chắc chắn rồi
+chắc chắn là
+có lẽ là
+có lẽ không
+chắc là không
+tất nhiên rồi
+dĩ nhiên rồi
+hiển nhiên rồi
+rõ ràng rồi
+không rõ lắm
+mơ hồ quá
+khó hiểu quá
+khó nói quá
+khó làm quá
+dễ hiểu lắm
+dễ nói lắm
+dễ làm lắm
+rất dễ
+rất khó
+quá dễ
+quá khó
+hơi dễ
+hơi khó
+cũng dễ
+cũng khó
+khá dễ
+khá khó
+tương đối dễ
+tương đối khó
+cực kỳ dễ
+cực kỳ khó
+siêu dễ
+siêu khó
+tôi đang ăn
+tôi đang ngủ
+tôi đang chơi
+tôi đang đọc
+tôi đang viết
+tôi đang xem
+tôi đang nghe
+tôi đang nói
+tôi đang nghĩ
+tôi đang làm
+bạn đang ăn
+bạn đang ngủ
+bạn đang chơi
+bạn đang đọc
+bạn đang viết
+bạn đang xem
+bạn đang nghe
+bạn đang nói
+bạn đang nghĩ
+bạn đang làm
+chúng ta đang
+họ đang
+em đang
+anh đang
+mẹ đang
+bố đang
+con đang
+tôi sẽ đi
+tôi sẽ ăn
+tôi sẽ ngủ
+tôi sẽ chơi
+tôi sẽ đọc
+tôi sẽ viết
+tôi sẽ xem
+tôi sẽ nghe
+tôi sẽ nói
+tôi sẽ làm
+tôi đã đi
+tôi đã ăn
+tôi đã ngủ
+tôi đã chơi
+tôi đã đọc
+tôi đã viết
+tôi đã xem
+tôi đã nghe
+tôi đã nói
+tôi đã làm
+học tiếng việt
+học tiếng anh
+học toán
+học lý
+học hóa
+học sinh
+học sinh giỏi
+học bài
+học thuộc lòng
+học online
+học trực tuyến
+làm bài tập
+làm việc nhà
+làm việc
+làm ăn
+làm giàu
+làm quen
+làm thân
+làm bạn
+ăn cơm
+ăn sáng
+ăn trưa
+ăn tối
+ăn vặt
+ăn uống
+ăn ngon
+ăn no
+ăn đủ
+ăn kiêng
+uống nước
+uống trà
+uống cà phê
+uống bia
+uống rượu
+uống thuốc
+ngủ ngon
+ngủ sâu
+ngủ đủ giấc
+ngủ không ngon
+ngủ muộn
+ngủ sớm
+ngủ trưa
+ngủ đêm
+chơi game
+chơi bóng
+chơi cầu lông
+chơi tennis
+chơi piano
+chơi guitar
+chơi với bạn
+chơi một mình
+đi chơi
+đi học
+đi làm
+đi du lịch
+đi mua sắm
+đi ăn
+đi uống
+đi xem phim
+đi nghe nhạc
+về nhà
+về quê
+về nước
+về trễ
+về sớm
+ra ngoài
+ra đường
+ra biển
+ra vườn
+vào nhà
+vào phòng
+vào trong
+lên xe
+lên máy bay
+lên tàu
+xuống xe
+xuống máy bay
+xuống tàu
+tôi thích ăn
+tôi thích uống
+tôi thích chơi
+tôi thích đi
+tôi thích về
+tôi thích ra
+tôi thích vào
+tôi thích lên
+tôi thích xuống
+tôi không thích ăn
+tôi không thích uống
+tôi không thích chơi
+tôi không thích đi
+tôi không thích về
+bạn có thích
+em có thích
+anh có thích
+có thích không
+thích hay không
+thích thì làm
+không thích thì thôi 
