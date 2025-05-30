@@ -59,6 +59,12 @@ class TextProcessor:
         
         return text
     
+    def clean_text(self, text: str) -> str:
+        """
+        Clean và chuẩn hóa text cho input
+        """
+        return self.normalize_text(text)
+    
     def tokenize(self, text: str) -> List[str]:
         """
         Tách văn bản thành các từ

@@ -1,10 +1,16 @@
 """
-Core modules cho bàn phím recommend tiếng Việt
-Version 2.0 - Enhanced với advanced features
+Core modules cho bàn phím AI tiếng Việt
+AI-powered Vietnamese Keyboard System
 """
 
-from .text_processor import TextProcessor
-from .dictionary import Dictionary
-from .recommender import AdvancedRecommender, Recommender
+# Core module for Vietnamese Keyboard AI
+# AI-powered components only
 
-__all__ = ['TextProcessor', 'Dictionary', 'AdvancedRecommender', 'Recommender'] 
+from .text_processor import TextProcessor
+from .ai_recommender import AIRecommender, get_ai_recommender
+
+__all__ = [
+    'TextProcessor',
+    'AIRecommender',
+    'get_ai_recommender'
+] 

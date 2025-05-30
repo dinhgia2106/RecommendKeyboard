@@ -1,8 +1,8 @@
 """
-UI modules cho bàn phím recommend tiếng Việt
-Version 2.0 - Enhanced với advanced features
+UI modules cho bàn phím AI tiếng Việt
+AI-powered Vietnamese Keyboard UI
 """
 
-from .keyboard_ui import AdvancedKeyboardUI, KeyboardUI
+from .ai_keyboard_ui import AIKeyboardUI
 
-__all__ = ['AdvancedKeyboardUI', 'KeyboardUI'] 
+__all__ = ['AIKeyboardUI'] 
