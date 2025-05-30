@@ -25,6 +25,9 @@ class VietnameseNonAccentedTokenizer:
         self.SOS_TOKEN = "<sos>"
         self.EOS_TOKEN = "<eos>"
 
+        # Padding token index constant (from v7)
+        self.PADDING_TOKEN_INDEX = 0
+
         self.special_tokens = [self.PAD_TOKEN,
                                self.UNK_TOKEN, self.SOS_TOKEN, self.EOS_TOKEN]
 

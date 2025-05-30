@@ -1,2 +1,10 @@
 *.pth
 *.txt
+*.json
+*.csv
+*.log
+*.log.*
+*.log.*.*
+*.log.*.*.*
+*.log.*.*.*.*
+*.log.*.*.*.*.*

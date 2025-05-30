@@ -9,9 +9,41 @@ import json
 from typing import List, Tuple, Optional, Dict
 from collections import defaultdict
 import time
+import torch.nn.functional as F
+import numpy as np
 
-from .models.gpt_model import load_model, GPTConfig
+from .models.gpt_model import load_model, GPTConfig, VietnameseNonAccentedGPT
 from .tokenizer import VietnameseNonAccentedTokenizer, get_tokenizer
+
+
+def next_word_predictions(model: VietnameseNonAccentedGPT, seqs: List[str], tokenizer: VietnameseNonAccentedTokenizer, max_length: int = 32) -> List[List[int]]:
+    """
+    Predict next words for given sequences (inspired by v7)
+    Returns sorted indices of predictions for each sequence
+    """
+    # Tokenize sequences
+    tokens = []
+    for seq in seqs:
+        words = seq.lower().strip().split()
+        token_ids = tokenizer.encode_sequence(words, max_length)
+        tokens.append(token_ids[-max_length:])  # Take last max_length tokens
+
+    tokens = torch.tensor(tokens, dtype=torch.long).to(model.device)
+
+    with torch.no_grad():
+        # Forward pass through the model
+        logits, _ = model(tokens)  # (B, T, vocab_size)
+
+        # Take logits at the last position
+        logits = logits[:, -1, :]  # (B, vocab_size)
+
+        # Get the indices that would sort the logits in descending order
+        sorted_indices = torch.argsort(logits, dim=-1, descending=True)
+
+        # Convert to list of indices
+        sorted_indices_list = sorted_indices.cpu().tolist()
+
+    return sorted_indices_list
 
 
 class VietnameseNonAccentedInference:
@@ -171,44 +203,59 @@ class VietnameseNonAccentedInference:
         max_suggestions: int,
         temperature: float
     ) -> List[Tuple[str, float, str]]:
-        """Get suggestions from neural model (context-aware)"""
+        """Get suggestions from neural model (context-aware) - improved from v7"""
         if not self.model or not self.tokenizer:
             return []
 
         try:
-            # Prepare context
-            # Last 5 words
-            context_words = context[-5:] if context else ["<sos>"]
+            # Prepare context - Last 5 words
+            context_words = context[-5:] if context else []
+            context_str = " ".join(context_words) if context_words else ""
 
-            # Encode context
-            context_ids = self.tokenizer.encode_sequence(
-                context_words,
-                max_length=self.config.block_size - 1 if self.config else 31
+            # Use improved next_word_predictions function from v7
+            sorted_indices_list = next_word_predictions(
+                self.model,
+                [context_str],
+                self.tokenizer,
+                max_length=self.config.block_size if self.config else 32
             )
-            context_tensor = torch.tensor([context_ids], device=self.device)
 
-            # Get model predictions
-            with torch.no_grad():
-                top_indices, probs = self.model.predict_next_words(
-                    context_tensor,
-                    num_predictions=max_suggestions * 2,  # Get more for filtering
-                    temperature=temperature
-                )
-
-            # Decode predictions and filter by pinyin
+            # Get top predictions with temperature scaling
             suggestions = []
-            for idx, prob in zip(top_indices[0], probs[0]):
-                word = self.tokenizer.decode_token(idx.item())
+            if sorted_indices_list:
+                # Get more for filtering
+                top_indices = sorted_indices_list[0][:max_suggestions * 3]
 
-                # Check if word matches non-accented input
-                word_non_accented = self.tokenizer.word_to_non_accented_map(
-                    word)
-                if word_non_accented and self._non_accented_matches(non_accented_input, word_non_accented):
-                    confidence = prob.item()
-                    suggestions.append((word, confidence, "model"))
+                # Convert to probabilities with temperature
+                with torch.no_grad():
+                    context_tokens = []
+                    if context_words:
+                        context_tokens = self.tokenizer.encode_sequence(
+                            context_words)
+                    context_tensor = torch.tensor(
+                        [context_tokens[-31:]], device=self.device) if context_tokens else torch.tensor([[]], device=self.device)
 
-                if len(suggestions) >= max_suggestions:
-                    break
+                    if context_tensor.size(-1) > 0:
+                        logits, _ = self.model(context_tensor)
+                        last_logits = logits[:, -1, :] / temperature
+                        probs = F.softmax(last_logits, dim=-1)
+
+                        for idx in top_indices:
+                            word = self.tokenizer.decode_token(idx)
+
+                            # Skip special tokens
+                            if word in self.tokenizer.special_tokens:
+                                continue
+
+                            # Check if word matches non-accented input
+                            word_non_accented = self.tokenizer.word_to_non_accented_map(
+                                word)
+                            if word_non_accented and self._non_accented_matches(non_accented_input, word_non_accented):
+                                confidence = probs[0, idx].item()
+                                suggestions.append((word, confidence, "model"))
+
+                                if len(suggestions) >= max_suggestions:
+                                    break
 
             return suggestions
 

@@ -45,6 +45,8 @@ class CausalSelfAttention(nn.Module):
             config.n_embd, 3 * config.n_embd, bias=config.bias)
         # Output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd, bias=config.bias)
+        # Scale initialization for residual connections (from v7)
+        self.c_proj.NANOGPT_SCALE_INIT = 1
 
         # Regularization
         self.attn_dropout = nn.Dropout(config.dropout)
@@ -54,11 +56,7 @@ class CausalSelfAttention(nn.Module):
         self.n_embd = config.n_embd
         self.dropout = config.dropout
 
-        # Causal mask
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
-                             .view(1, 1, config.block_size, config.block_size))
-
-    def forward(self, x):
+    def forward(self, x, attention_mask=None, is_causal=True):
         B, T, C = x.size()  # Batch size, sequence length, embedding dimensionality
 
         # Calculate query, key, values for all heads in batch
@@ -70,12 +68,14 @@ class CausalSelfAttention(nn.Module):
         v = v.view(B, T, self.n_head, C //
                    self.n_head).transpose(1, 2)  # (B, nh, T, hs)
 
-        # Causal self-attention
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float('-inf'))
-        att = F.softmax(att, dim=-1)
-        att = self.attn_dropout(att)
-        y = att @ v  # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+        # Use efficient scaled_dot_product_attention from v7
+        y = F.scaled_dot_product_attention(
+            q, k, v,
+            attn_mask=attention_mask,
+            is_causal=bool(is_causal),
+            dropout_p=self.dropout if self.training else 0.0
+        )
+
         # Re-assemble all head outputs side by side
         y = y.transpose(1, 2).contiguous().view(B, T, C)
 
@@ -114,8 +114,10 @@ class Block(nn.Module):
         self.ln_2 = nn.LayerNorm(config.n_embd)
         self.mlp = MLP(config)
 
-    def forward(self, x):
-        x = x + self.attn(self.ln_1(x))
+    def forward(self, x, attention_mask=None, is_training=False):
+        # Apply attention with mask support from v7
+        x = x + self.attn(self.ln_1(x),
+                          attention_mask=attention_mask, is_causal=is_training)
         x = x + self.mlp(self.ln_2(x))
         return x
 
@@ -153,6 +155,11 @@ class VietnameseNonAccentedGPT(nn.Module):
 
         print(f"Number of parameters: {self.get_num_params():,}")
 
+    @property
+    def device(self):
+        """Get device of model parameters (from v7)"""
+        return next(self.parameters()).device
+
     def get_num_params(self, non_embedding=True):
         """Return the number of parameters in the model"""
         n_params = sum(p.numel() for p in self.parameters())
@@ -163,13 +170,17 @@ class VietnameseNonAccentedGPT(nn.Module):
     def _init_weights(self, module):
         """Initialize weights"""
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # Improved initialization from v7
+            std = 0.02
+            if hasattr(module, 'NANOGPT_SCALE_INIT'):
+                std *= (2 * self.config.n_layer) ** -0.5
+            torch.nn.init.normal_(module.weight, mean=0.0, std=std)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
         elif isinstance(module, nn.Embedding):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, attention_mask=None, padding_token_id=0):
         device = idx.device
         b, t = idx.size()
         assert t <= self.config.block_size, f"Cannot forward sequence of length {t}, block size is only {self.config.block_size}"
@@ -182,15 +193,29 @@ class VietnameseNonAccentedGPT(nn.Module):
         pos_emb = self.transformer.wpe(pos)
         x = self.transformer.drop(tok_emb + pos_emb)
 
+        # Generate attention mask if not provided (from v7)
+        if attention_mask is None:
+            attention_mask = (idx != padding_token_id).unsqueeze(
+                1).unsqueeze(2)  # (B, 1, 1, T)
+            attention_mask = attention_mask.to(
+                dtype=x.dtype)  # Convert to float for scaling
+
+        # Pass through transformer blocks with attention mask
+        is_training = self.training
         for block in self.transformer.h:
-            x = block(x)
+            x = block(x, attention_mask=attention_mask,
+                      is_training=is_training)
         x = self.transformer.ln_f(x)
 
         if targets is not None:
             # If we are given some desired targets also calculate the loss
             logits = self.lm_head(x)
+            # Improved loss calculation with ignore_index for padding
             loss = F.cross_entropy(
-                logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+                logits.view(-1, logits.size(-1)),
+                targets.view(-1),
+                ignore_index=padding_token_id
+            )
         else:
             # Inference-time mini-optimization: only forward the lm_head on the very last position
             # Note: using list [-1] to preserve the time dim
