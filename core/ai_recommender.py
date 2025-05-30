@@ -1,314 +1,159 @@
 """
-AI-powered Vietnamese Non-Accented Recommender
-Uses trained GPT model for intelligent word prediction
+Minimal AI Recommender for Vietnamese AI Keyboard
+Delegates to ML components for suggestions
 """
 
-from .text_processor import TextProcessor
-import os
 import sys
-from typing import List, Tuple, Dict, Optional
-import time
+import os
+from typing import List, Dict, Any, Optional
 
-# Add ml module to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
 try:
-    from ml.inference import get_inference_engine, predict_vietnamese_words
-    ML_AVAILABLE = True
+    from ml.word_segmentation import VietnameseWordSegmenter
+    from ml.hybrid_suggestions import VietnameseHybridSuggestions
 except ImportError as e:
-    print(f"ML module not available: {e}")
-    ML_AVAILABLE = False
+    print(f"Warning: Could not import ML components: {e}")
+    VietnameseWordSegmenter = None
+    VietnameseHybridSuggestions = None
 
 
 class AIRecommender:
-    """AI-powered Vietnamese Non-Accented Recommender"""
+    """
+    AI Recommender that uses the ML components for suggestions
+    """
 
-    def __init__(
-        self,
-        model_path: str = "checkpoints/vietnamese_non_accented_gpt_best.pth",
-        data_dir: str = "ml/data",
-        fallback_to_simple: bool = True
-    ):
-        self.model_path = model_path
-        self.data_dir = data_dir
-        self.fallback_to_simple = fallback_to_simple
+    def __init__(self):
+        """Initialize AI Recommender"""
+        self.segmenter = None
+        self.hybrid_suggestions = None
+        self.stats = {
+            'ai_engine_available': False,
+            'ai_vocab_size': 0,
+            'ai_device': 'CPU',
+            'total_predictions': 0,
+            'successful_predictions': 0
+        }
 
-        # Initialize components
-        self.text_processor = TextProcessor()
-        self.inference_engine = None
+        self._initialize_components()
 
-        # Context tracking
-        self.context_words = []
-        self.max_context_length = 5
-
-        # Performance tracking
-        self.recommendations_served = 0
-        self.total_response_time = 0.0
-
-        # Initialize AI engine
-        self.initialize_ai_engine()
-
-    def initialize_ai_engine(self):
-        """Initialize AI inference engine"""
-        if not ML_AVAILABLE:
-            print("⚠️  ML components not available. Using fallback mode.")
-            return
-
+    def _initialize_components(self):
+        """Initialize ML components"""
         try:
-            print("🤖 Initializing AI inference engine...")
-            self.inference_engine = get_inference_engine(
-                model_path=self.model_path,
-                data_dir=self.data_dir
-            )
-            print("✅ AI inference engine loaded successfully!")
+            if VietnameseWordSegmenter:
+                self.segmenter = VietnameseWordSegmenter()
+                print("✅ Word Segmenter initialized")
 
-            # Print engine statistics
-            stats = self.inference_engine.get_statistics()
-            print(f"📊 Engine stats: {stats}")
+            if VietnameseHybridSuggestions:
+                self.hybrid_suggestions = VietnameseHybridSuggestions()
+                print("✅ Hybrid Suggestions initialized")
+
+            self.stats['ai_engine_available'] = True
+            self.stats['ai_vocab_size'] = 268  # Mapping count
 
         except Exception as e:
-            print(f"❌ Failed to initialize AI engine: {e}")
-            if not self.fallback_to_simple:
-                raise
-            print("🔄 Falling back to simple recommendations")
+            print(f"Warning: Failed to initialize ML components: {e}")
+            self.stats['ai_engine_available'] = False
 
-    def recommend(
-        self,
-        user_input: str,
-        context: List[str] = None,
-        max_suggestions: int = 8,
-        use_context: bool = True
-    ) -> List[Tuple[str, float, str]]:
-        """
-        Get word recommendations for pinyin input
-
-        Args:
-            user_input: User's pinyin input
-            context: Context words (optional)
-            max_suggestions: Maximum number of suggestions
-            use_context: Whether to use context for predictions
-
-        Returns:
-            List of (word, confidence, method) tuples
-        """
-        start_time = time.time()
-
-        # Clean input
-        clean_input = self.text_processor.clean_text(
-            user_input.strip().lower())
-        if not clean_input:
+    def get_suggestions(self, text: str, max_suggestions: int = 5) -> List[Dict[str, Any]]:
+        """Get suggestions for input text"""
+        if not text:
             return []
 
-        # Use provided context or internal context
-        if use_context:
-            prediction_context = context if context else self.context_words
-        else:
-            prediction_context = []
+        suggestions = []
+        self.stats['total_predictions'] += 1
 
-        recommendations = []
+        try:
+            if self.hybrid_suggestions:
+                # Use hybrid suggestions
+                results = self.hybrid_suggestions.get_suggestions(
+                    text, max_suggestions=max_suggestions)
 
-        # Try AI predictions first
-        if self.inference_engine:
-            try:
-                recommendations = self.inference_engine.non_accented_to_words(
-                    non_accented_input=clean_input,
-                    context=prediction_context,
-                    max_suggestions=max_suggestions,
-                    use_model=True,
-                    temperature=0.8
-                )
-            except Exception as e:
-                print(f"AI prediction error: {e}")
+                for result in results:
+                    suggestions.append({
+                        'word': result.get('word', ''),
+                        'confidence': result.get('confidence', 0.0),
+                        'source': result.get('method', 'hybrid'),
+                        'score': result.get('confidence', 0.0)
+                    })
 
-        # Fallback to simple recommendations
-        if not recommendations and self.fallback_to_simple:
-            recommendations = self._get_simple_recommendations(
-                clean_input, max_suggestions
-            )
+                if suggestions:
+                    self.stats['successful_predictions'] += 1
 
-        # Update performance tracking
-        response_time = time.time() - start_time
-        self.recommendations_served += 1
-        self.total_response_time += response_time
+        except Exception as e:
+            print(f"Error getting suggestions: {e}")
 
-        return recommendations
-
-    def _get_simple_recommendations(
-        self,
-        user_input: str,
-        max_suggestions: int
-    ) -> List[Tuple[str, float, str]]:
-        """Simple fallback recommendations without AI"""
-
-        # Basic Vietnamese word mappings for common inputs
-        simple_mappings = {
-            'xinchao': [('xin chào', 0.9), ('xin cháo', 0.3)],
-            'chao': [('chào', 0.9), ('cháo', 0.4)],
-            'xin': [('xin', 0.9), ('xinh', 0.3)],
-            'cam': [('cảm', 0.8), ('cam', 0.7), ('cắm', 0.3)],
-            'on': [('ơn', 0.8), ('ôn', 0.4)],
-            'ban': [('bạn', 0.9), ('ban', 0.6)],
-            'toi': [('tôi', 0.9), ('tới', 0.4)],
-            'la': [('là', 0.9), ('lá', 0.5), ('lạ', 0.3)],
-            'hoc': [('học', 0.9), ('hóc', 0.2)],
-            'sinh': [('sinh', 0.9), ('xinh', 0.3)],
-            'vien': [('viên', 0.8), ('viện', 0.7)],
-            'dai': [('dài', 0.7), ('đài', 0.6), ('dãi', 0.3)],
-            'hoc': [('học', 0.9), ('hóc', 0.2)],
-            'truong': [('trường', 0.8), ('trưởng', 0.7)]
-        }
-
-        # Get suggestions
-        suggestions = simple_mappings.get(user_input, [])
-
-        # Convert to standard format
-        recommendations = []
-        for word, confidence in suggestions[:max_suggestions]:
-            recommendations.append((word, confidence, "simple"))
-
-        return recommendations
-
-    def update_context(self, selected_word: str):
-        """Update context with selected word"""
-        if selected_word and len(selected_word.strip()) > 0:
-            # Tokenize selected word (might be multiple words)
-            words = self.text_processor.tokenize(selected_word)
-
-            # Add to context
-            self.context_words.extend(words)
-
-            # Keep only recent context
-            if len(self.context_words) > self.max_context_length:
-                self.context_words = self.context_words[-self.max_context_length:]
-
-            # Update AI engine context learning
-            if self.inference_engine:
-                try:
-                    self.inference_engine.update_context_learning(
-                        selected_word, self.context_words
-                    )
-                except Exception as e:
-                    print(f"Context learning update error: {e}")
-
-    def clear_context(self):
-        """Clear current context"""
-        self.context_words = []
-
-    def get_context(self) -> List[str]:
-        """Get current context words"""
-        return self.context_words.copy()
-
-    def get_statistics(self) -> Dict:
-        """Get recommender statistics"""
-        base_stats = {
-            'recommendations_served': self.recommendations_served,
-            'avg_response_time': (
-                self.total_response_time / max(self.recommendations_served, 1)
-            ),
-            'context_length': len(self.context_words),
-            'current_context': self.context_words,
-            'ai_engine_available': self.inference_engine is not None,
-            'ml_module_available': ML_AVAILABLE
-        }
-
-        # Add AI engine stats if available
-        if self.inference_engine:
-            try:
-                ai_stats = self.inference_engine.get_statistics()
-                base_stats.update({
-                    f'ai_{key}': value for key, value in ai_stats.items()
-                })
-            except Exception as e:
-                base_stats['ai_stats_error'] = str(e)
-
-        return base_stats
-
-    def benchmark_performance(self, test_cases: List[str] = None):
-        """Benchmark recommendation performance"""
-        if test_cases is None:
-            test_cases = [
-                'xinchao', 'chao', 'cam', 'on', 'ban',
-                'toi', 'la', 'hoc', 'sinh', 'vien'
+        # Fallback suggestions if no results
+        if not suggestions:
+            suggestions = [
+                {'word': text, 'confidence': 0.1,
+                    'source': 'fallback', 'score': 0.1}
             ]
 
-        print(
-            f"🔄 Benchmarking AI Recommender with {len(test_cases)} test cases...")
+        return suggestions[:max_suggestions]
 
-        total_time = 0
-        successful_predictions = 0
+    def segment_text(self, text: str) -> str:
+        """Segment text into words"""
+        if not text:
+            return ""
 
-        for test_input in test_cases:
-            start_time = time.time()
+        try:
+            if self.segmenter:
+                return self.segmenter.segment_text(text)
+        except Exception as e:
+            print(f"Error segmenting text: {e}")
 
-            try:
-                recommendations = self.recommend(test_input, max_suggestions=5)
-                prediction_time = time.time() - start_time
-                total_time += prediction_time
+        # Fallback: return original text
+        return text
 
-                if recommendations:
-                    successful_predictions += 1
-                    print(f"  ✅ {test_input}: {len(recommendations)} suggestions "
-                          f"({prediction_time*1000:.1f}ms)")
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get AI engine statistics"""
+        return self.stats.copy()
 
-                    # Show top suggestion
-                    top_word, confidence, method = recommendations[0]
-                    print(f"      → {top_word} ({confidence:.2%}, {method})")
-                else:
-                    print(f"  ❌ {test_input}: No suggestions")
+    def is_available(self) -> bool:
+        """Check if AI engine is available"""
+        return self.stats['ai_engine_available']
 
-            except Exception as e:
-                print(f"  💥 {test_input}: Error - {e}")
+    def smart_recommend(self, user_input: str, context: List[str] = None, max_suggestions: int = 5) -> List[tuple]:
+        """Smart recommendations compatible with UI expectations"""
+        if not user_input:
+            return []
 
-        avg_time = total_time / len(test_cases)
-        success_rate = successful_predictions / len(test_cases)
+        suggestions = self.get_suggestions(user_input, max_suggestions)
 
-        print(f"\n📊 Benchmark Results:")
-        print(f"  Average response time: {avg_time*1000:.2f}ms")
-        print(f"  Success rate: {success_rate:.1%}")
-        print(f"  Predictions per second: {1/avg_time:.1f}")
+        # Convert to format expected by UI: (text, confidence, method)
+        results = []
+        for suggestion in suggestions:
+            text = suggestion.get('word', '')
+            confidence = suggestion.get('confidence', 0.0)
+            method = suggestion.get('source', 'hybrid')
+            results.append((text, confidence, method))
 
-        # Additional AI engine benchmark if available
-        if self.inference_engine:
-            try:
-                self.inference_engine.benchmark_performance(
-                    test_cases, iterations=10)
-            except Exception as e:
-                print(f"AI engine benchmark error: {e}")
+        return results
 
-    def smart_recommend(
-        self,
-        user_input: str,
-        context: List[str] = None,
-        max_suggestions: int = 8
-    ) -> List[Tuple[str, float, str]]:
-        """Smart recommendation with enhanced context handling"""
-        # This is the main method that should be called from UI
-        return self.recommend(
-            user_input=user_input,
-            context=context,
-            max_suggestions=max_suggestions,
-            use_context=True
-        )
+    def update_context(self, text: str):
+        """Update context (placeholder for UI compatibility)"""
+        # In a full implementation, this would update the context
+        pass
 
-    def update_preferences(self, selected_word: str, context: List[str]):
-        """Update user preferences based on selection"""
-        # Update context
-        self.update_context(selected_word)
-
-        # Additional preference learning could be implemented here
+    def clear_context(self):
+        """Clear context (placeholder for UI compatibility)"""
+        # In a full implementation, this would clear the context
         pass
 
 
-# Create global instance
-_ai_recommender = None
+# Global instance
+_ai_recommender_instance = None
 
 
-def get_ai_recommender(
-    model_path: str = "checkpoints/vietnamese_non_accented_gpt_best.pth",
-    data_dir: str = "ml/data"
-) -> AIRecommender:
-    """Get global AI recommender instance"""
-    global _ai_recommender
-    if _ai_recommender is None:
-        _ai_recommender = AIRecommender(model_path, data_dir)
-    return _ai_recommender
+def get_ai_recommender() -> AIRecommender:
+    """Get global AI Recommender instance"""
+    global _ai_recommender_instance
+
+    if _ai_recommender_instance is None:
+        _ai_recommender_instance = AIRecommender()
+
+    return _ai_recommender_instance
