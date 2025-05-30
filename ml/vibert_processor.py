@@ -66,7 +66,13 @@ class ViBERTVietnameseProcessor:
             'duoi': 'dưới',
             'giua': 'giữa',
             'sau': 'sau',
-            'truoc': 'trước'
+            'truoc': 'trước',
+            'muon': 'muốn',
+            'can': 'cần',
+            'thich': 'thích',
+            'chao': 'chào',
+            'cam': 'cảm',
+            'xin': 'xin'
         }
 
         # Common compound patterns
@@ -74,14 +80,40 @@ class ViBERTVietnameseProcessor:
             'toidemden': 'tôi đem đến',
             'toilambai': 'tôi làm bài',
             'toimangden': 'tôi mang đến',
+            'toimuon': 'tôi muốn',
+            'toican': 'tôi cần',
+            'toithich': 'tôi thích',
+            'toicochuc': 'tôi có thể',
+            'toiphaidua': 'tôi phải đưa',
+            'toikhong': 'tôi không',
+            'toico': 'tôi có',
+            'toidi': 'tôi đi',
+            'toidoc': 'tôi đọc',
+            'toiviet': 'tôi viết',
+            'toilam': 'tôi làm',
+            'toihoc': 'tôi học',
             'anhdichuyen': 'anh đi chuyển',
+            'anhmuon': 'anh muốn',
+            'anhco': 'anh có',
             'emhocbai': 'em học bài',
+            'emmuon': 'em muốn',
+            'emco': 'em có',
             'chungtoilam': 'chúng tôi làm',
+            'chungtoican': 'chúng tôi cần',
+            'chungtoimuon': 'chúng tôi muốn',
             'banvietbai': 'bạn viết bài',
+            'banmuon': 'bạn muốn',
+            'banco': 'bạn có',
             'cogiaoday': 'cô giáo dạy',
+            'comuon': 'cô muốn',
             'thaygiaoday': 'thầy giáo dạy',
             'hocsinhhoc': 'học sinh học',
-            'chocacban': 'cho các bạn'  # Context-dependent
+            'chocacban': 'cho các bạn',
+            'bancochuc': 'bạn có thể',
+            'emcothe': 'em có thể',
+            'xinchao': 'xin chào',
+            'camon': 'cảm ơn',
+            'xincamon': 'xin cảm ơn'
         }
 
         # Vietnamese phonetic patterns

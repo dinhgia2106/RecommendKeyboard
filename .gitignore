@@ -86,3 +86,5 @@ ml/data/*.csv
 !README.md
 !MODEL_ARCHITECTURE.md
 !.gitignore
+
+TECHNICAL_PAPER.md
