@@ -41,6 +41,8 @@ class SegmentationRequest(BaseModel):
     """Request model for segmentation API."""
     text: str
     preprocess: bool = True
+    multiple_suggestions: bool = False
+    n_suggestions: int = 5
 
 
 class SegmentationResponse(BaseModel):
@@ -50,6 +52,8 @@ class SegmentationResponse(BaseModel):
     processing_time: float
     success: bool
     error_message: Optional[str] = None
+    confidence_score: Optional[float] = None
+    candidates: Optional[List[Dict[str, Any]]] = None
 
 
 class BatchSegmentationRequest(BaseModel):
@@ -96,13 +100,15 @@ class CRFDeploymentManager:
             logger.error(f"❌ Failed to load model: {e}")
             raise
     
-    def segment_text(self, text: str, preprocess: bool = True) -> SegmentationResponse:
+    def segment_text(self, text: str, preprocess: bool = True, multiple_suggestions: bool = False, n_suggestions: int = 5) -> SegmentationResponse:
         """
         Segment single text with error handling.
         
         Args:
             text: Input text to segment
             preprocess: Whether to preprocess the text
+            multiple_suggestions: Whether to return multiple suggestions
+            n_suggestions: Number of suggestions to return
             
         Returns:
             SegmentationResponse with results
@@ -111,14 +117,30 @@ class CRFDeploymentManager:
             if not self.inference_engine:
                 raise RuntimeError("Model not loaded")
             
-            result = self.inference_engine.segment(text)
-            
-            return SegmentationResponse(
-                input_text=result.input_text,
-                segmented_text=result.segmented_text,
-                processing_time=result.processing_time,
-                success=True
-            )
+            if multiple_suggestions:
+                result = self.inference_engine.segment_multiple(text, n_suggestions)
+                candidates = [
+                    {"text": candidate, "confidence": confidence}
+                    for candidate, confidence in result.candidates
+                ] if result.candidates else None
+                
+                return SegmentationResponse(
+                    input_text=result.input_text,
+                    segmented_text=result.segmented_text,
+                    processing_time=result.processing_time,
+                    success=True,
+                    confidence_score=result.confidence_score,
+                    candidates=candidates
+                )
+            else:
+                result = self.inference_engine.segment(text)
+                
+                return SegmentationResponse(
+                    input_text=result.input_text,
+                    segmented_text=result.segmented_text,
+                    processing_time=result.processing_time,
+                    success=True
+                )
             
         except Exception as e:
             logger.error(f"Segmentation error for text '{text}': {e}")
@@ -187,21 +209,39 @@ def create_gradio_interface() -> gr.Interface:
         Configured Gradio interface
     """
     
-    def segment_interface(text: str) -> tuple:
-        """Interface function for Gradio."""
+    def segment_interface(text: str, multiple_suggestions: bool = True) -> tuple:
+        """Interface function for Gradio with real-time processing."""
         if not deployment_manager:
-            return "❌ Model not loaded", 0.0, "Error: Model not initialized"
+            return "❌ Model not loaded", 0.0, "Error: Model not initialized", ""
         
-        if not text.strip():
-            return "", 0.0, "Please enter some text to segment"
+        # Handle empty text
+        if not text or not text.strip():
+            return "", 0.0, "💡 Nhập text tiếng Việt không dấu để xem kết quả real-time", ""
         
-        response = deployment_manager.segment_text(text)
-        
-        if response.success:
-            status = f"✅ Segmented successfully in {response.processing_time:.4f}s"
-            return response.segmented_text, response.processing_time, status
-        else:
-            return "", 0.0, f"❌ Error: {response.error_message}"
+        # Show processing status for real-time feedback
+        try:
+            response = deployment_manager.segment_text(text, multiple_suggestions=multiple_suggestions, n_suggestions=8)
+            
+            if response.success:
+                status = f"✅ Processed in {response.processing_time:.4f}s | Characters: {len(text)} | Auto-update: ON"
+                
+                # Format multiple suggestions if available
+                suggestions_text = ""
+                if response.candidates and multiple_suggestions:
+                    suggestions_text = "📍 Multiple suggestions (real-time):\n"
+                    for i, candidate in enumerate(response.candidates, 1):
+                        conf_text = f" (confidence: {candidate['confidence']:.3f})" if 'confidence' in candidate else ""
+                        mark = "👑 " if i == 1 else "   "
+                        suggestions_text += f"{mark}{i}. {candidate['text']}{conf_text}\n"
+                elif not multiple_suggestions:
+                    suggestions_text = "ℹ️ Multiple suggestions is disabled. Enable checkbox to see more options."
+                
+                return response.segmented_text, response.processing_time, status, suggestions_text
+            else:
+                return "", 0.0, f"❌ Error: {response.error_message}", ""
+                
+        except Exception as e:
+            return "", 0.0, f"❌ Processing error: {str(e)}", ""
     
     def batch_segment_interface(texts: str) -> str:
         """Batch segmentation interface for Gradio."""
@@ -245,48 +285,71 @@ def create_gradio_interface() -> gr.Interface:
     # Create interface with tabs
     with gr.Blocks(title="Vietnamese Word Segmentation - CRF", theme=gr.themes.Soft()) as demo:
         gr.Markdown("# 🇻🇳 Vietnamese Word Segmentation using CRF")
-        gr.Markdown("Enter Vietnamese text without spaces and diacritics to get properly segmented text.")
+        gr.Markdown("🚀 **Real-time segmentation** - Nhập text và xem kết quả ngay lập tức!")
+        gr.Markdown("💡 **Multiple suggestions enabled** - Xem nhiều cách chia từ khác nhau với confidence scores")
         
-        with gr.Tab("Single Text Segmentation"):
+        with gr.Tab("📝 Real-time Segmentation"):
             with gr.Row():
-                with gr.Column(scale=2):
+                with gr.Column(scale=1):
                     input_text = gr.Textbox(
-                        label="Input Text (no spaces, no diacritics)",
-                        placeholder="Example: xinchao",
-                        lines=2
+                        label="🔤 Input Text (Vietnamese without spaces)",
+                        placeholder="Ví dụ: xinchao, toilasinhhvien, demanoicacbac...",
+                        lines=3,
+                        info="Tự động hiển thị kết quả khi bạn nhập"
                     )
-                    segment_btn = gr.Button("Segment Text", variant="primary")
-                
-                with gr.Column(scale=2):
-                    output_text = gr.Textbox(
-                        label="Segmented Text",
-                        lines=2,
-                        interactive=False
+                    
+                    multiple_suggestions = gr.Checkbox(
+                        label="📊 Show multiple suggestions",
+                        value=True,
+                        info="Hiển thị nhiều cách chia từ khác nhau"
                     )
                     processing_time = gr.Number(
-                        label="Processing Time (seconds)",
-                        interactive=False
+                        label="⏱️ Processing Time (s)",
+                        interactive=False,
+                        precision=4
+                    )
+                
+                with gr.Column(scale=1):
+                    output_text = gr.Textbox(
+                        label="🎯 Best Segmented Result",
+                        lines=3,
+                        interactive=False,
+                        info="Kết quả tốt nhất (confidence cao nhất)"
                     )
                     status_text = gr.Textbox(
-                        label="Status",
-                        interactive=False
+                        label="ℹ️ Status",
+                        interactive=False,
+                        lines=1
                     )
             
+            # Multiple suggestions output
+            suggestions_output = gr.Textbox(
+                label="📍 Multiple Suggestions (with confidence scores)",
+                lines=8,
+                interactive=False,
+                visible=True,
+                info="Danh sách các cách chia từ khác nhau, sắp xếp theo độ tin cậy"
+            )
+            
             # Examples
-            gr.Markdown("### Example Inputs:")
+            gr.Markdown("### 📋 Quick Examples:")
+            gr.Markdown("*Click vào example để test nhanh:*")
+            
             example_texts = [
-                ["xinchao"],
-                ["toilasinhhvien"],
-                ["moibandenquannuocvietnam"],
-                ["chungtoicunglamviec"]
+                ["xinchao", True],
+                ["toilasinhhvien", True],
+                ["moibandenquannuocvietnam", True],
+                ["demanoicacbaclanhdaocuckigioi", True],
+                ["chungtoicunglamviec", True]
             ]
             
             gr.Examples(
                 examples=example_texts,
-                inputs=input_text,
-                outputs=[output_text, processing_time, status_text],
+                inputs=[input_text, multiple_suggestions],
+                outputs=[output_text, processing_time, status_text, suggestions_output],
                 fn=segment_interface,
-                cache_examples=False
+                cache_examples=False,
+                label="🚀 Try these examples:"
             )
         
         with gr.Tab("Batch Segmentation"):
@@ -316,11 +379,32 @@ def create_gradio_interface() -> gr.Interface:
             else:
                 gr.Markdown("❌ Model not loaded")
         
-        # Event handlers
-        segment_btn.click(
+        # Event handlers - Real-time auto-update
+        input_text.change(  # Trigger on every text change
             fn=segment_interface,
-            inputs=input_text,
-            outputs=[output_text, processing_time, status_text]
+            inputs=[input_text, multiple_suggestions],
+            outputs=[output_text, processing_time, status_text, suggestions_output]
+        )
+        
+        # Also add input event for real-time typing
+        input_text.input(  # Trigger while typing
+            fn=segment_interface,
+            inputs=[input_text, multiple_suggestions],
+            outputs=[output_text, processing_time, status_text, suggestions_output]
+        )
+        
+        # Also add submit event for Enter key
+        input_text.submit(  # Trigger on Enter
+            fn=segment_interface,
+            inputs=[input_text, multiple_suggestions],
+            outputs=[output_text, processing_time, status_text, suggestions_output]
+        )
+        
+        # Also update when checkbox changes
+        multiple_suggestions.change(
+            fn=segment_interface,
+            inputs=[input_text, multiple_suggestions],
+            outputs=[output_text, processing_time, status_text, suggestions_output]
         )
         
         batch_segment_btn.click(
@@ -399,7 +483,12 @@ async def segment_text(request: SegmentationRequest):
     if not deployment_manager:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
-    return deployment_manager.segment_text(request.text, request.preprocess)
+    return deployment_manager.segment_text(
+        request.text, 
+        request.preprocess, 
+        request.multiple_suggestions, 
+        request.n_suggestions
+    )
 
 
 @app.post("/batch_segment", response_model=BatchSegmentationResponse)

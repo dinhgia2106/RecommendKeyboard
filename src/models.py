@@ -263,6 +263,146 @@ class CRFSegmenter:
         features = self.feature_extractor.text_to_features(text)
         return self.model.predict_single(features)
     
+    def predict_multiple(self, text: str, n_best: int = 5) -> List[Tuple[List[str], float]]:
+        """
+        Predict multiple BIES label sequences with confidence scores.
+        
+        Args:
+            text: Input text without spaces
+            n_best: Number of best predictions to return
+            
+        Returns:
+            List of (labels, confidence_score) tuples, sorted by confidence
+        """
+        if not self.is_trained:
+            raise ValueError("Model must be trained before prediction!")
+        
+        features = self.feature_extractor.text_to_features(text)
+        
+        # Get probability distributions for each position
+        try:
+            # Try to get marginal probabilities if available
+            marginal_prob = self.model.predict_marginals_single(features)
+            
+            # Generate multiple hypotheses using beam search-like approach
+            predictions_with_scores = self._beam_search_decode(marginal_prob, n_best)
+            
+        except AttributeError:
+            # Fallback: Generate variations from single best prediction
+            best_labels = self.model.predict_single(features)
+            predictions_with_scores = self._generate_variations(text, best_labels, n_best)
+        
+        return predictions_with_scores[:n_best]
+    
+    def _beam_search_decode(self, marginal_prob: List[Dict], n_best: int = 5) -> List[Tuple[List[str], float]]:
+        """
+        Decode multiple sequences using marginal probabilities.
+        
+        Args:
+            marginal_prob: List of probability distributions for each position
+            n_best: Number of best sequences to keep
+            
+        Returns:
+            List of (labels, score) tuples
+        """
+        labels = ['B', 'I', 'E', 'S']
+        
+        # Simple beam search implementation
+        beams = [([''], 0.0)]  # (sequence, score)
+        
+        for pos_probs in marginal_prob:
+            new_beams = []
+            
+            for sequence, score in beams:
+                for label in labels:
+                    if label in pos_probs:
+                        new_score = score + np.log(pos_probs[label] + 1e-10)
+                        new_sequence = sequence + [label]
+                        new_beams.append((new_sequence, new_score))
+            
+            # Keep only top n_best beams
+            new_beams.sort(key=lambda x: x[1], reverse=True)
+            beams = new_beams[:n_best]
+        
+        # Convert scores to normalized confidence
+        final_results = []
+        scores = [score for _, score in beams]
+        max_score = max(scores) if scores else 0
+        
+        for sequence, score in beams:
+            confidence = np.exp(score - max_score)  # Normalize
+            final_results.append((sequence[1:], confidence))  # Remove initial empty string
+        
+        return final_results
+    
+    def _generate_variations(self, text: str, best_labels: List[str], n_best: int = 5) -> List[Tuple[List[str], float]]:
+        """
+        Generate variations from the best prediction by modifying some boundaries.
+        
+        Args:
+            text: Original text
+            best_labels: Best predicted labels
+            n_best: Number of variations to generate
+            
+        Returns:
+            List of (labels, confidence) tuples
+        """
+        variations = [(best_labels, 1.0)]  # Original prediction with highest confidence
+        
+        # Generate variations by changing some B/E boundaries
+        for _ in range(n_best - 1):
+            new_labels = best_labels.copy()
+            
+            # Find potential split points
+            for i in range(1, len(new_labels) - 1):
+                if best_labels[i] in ['I', 'E'] and best_labels[i-1] in ['B', 'I']:
+                    # Try splitting here
+                    variation = best_labels.copy()
+                    variation[i-1] = 'E' if variation[i-1] == 'I' else 'S' if variation[i-1] == 'B' else variation[i-1]
+                    variation[i] = 'B' if variation[i] == 'I' else 'S' if variation[i] == 'E' else variation[i]
+                    
+                    # Ensure valid BIES sequence
+                    variation = self._fix_bies_sequence(variation)
+                    
+                    confidence = 0.9 - (len(variations) * 0.1)  # Decreasing confidence
+                    variations.append((variation, max(confidence, 0.1)))
+                    
+                    if len(variations) >= n_best:
+                        break
+            
+            if len(variations) >= n_best:
+                break
+        
+        return variations[:n_best]
+    
+    def _fix_bies_sequence(self, labels: List[str]) -> List[str]:
+        """
+        Fix BIES sequence to ensure valid transitions.
+        
+        Args:
+            labels: Potentially invalid BIES sequence
+            
+        Returns:
+            Valid BIES sequence
+        """
+        fixed = []
+        
+        for i, label in enumerate(labels):
+            if i == 0:
+                # First position can only be B or S
+                fixed.append('B' if label in ['B', 'I'] else 'S')
+            else:
+                prev_label = fixed[i-1]
+                
+                if prev_label in ['B', 'I']:
+                    # After B or I, can only have I or E
+                    fixed.append('I' if label in ['B', 'I'] else 'E')
+                else:  # prev_label in ['E', 'S']
+                    # After E or S, can only have B or S
+                    fixed.append('B' if label in ['B', 'I'] else 'S')
+        
+        return fixed
+
     def segment(self, text: str) -> str:
         """
         Segment text using trained CRF model.
@@ -279,6 +419,67 @@ class CRFSegmenter:
         labels = self.predict(text)
         
         # Reconstruct words from BIES labels
+        result = []
+        current_word = ""
+        
+        for char, label in zip(text, labels):
+            if label in ['S', 'B']:
+                # Start new word
+                if current_word:
+                    result.append(current_word)
+                current_word = char
+            elif label in ['I', 'E']:
+                # Continue current word
+                current_word += char
+                if label == 'E':
+                    # End current word
+                    result.append(current_word)
+                    current_word = ""
+        
+        # Handle any remaining characters
+        if current_word:
+            result.append(current_word)
+        
+        return ' '.join(result)
+    
+    def segment_multiple(self, text: str, n_best: int = 5) -> List[Tuple[str, float]]:
+        """
+        Generate multiple segmentation candidates with confidence scores.
+        
+        Args:
+            text: Input text without spaces/diacritics
+            n_best: Number of segmentation candidates to return
+            
+        Returns:
+            List of (segmented_text, confidence) tuples, sorted by confidence
+        """
+        if not text:
+            return [("", 1.0)]
+        
+        predictions = self.predict_multiple(text, n_best)
+        results = []
+        
+        for labels, confidence in predictions:
+            segmented = self._labels_to_text(text, labels)
+            results.append((segmented, confidence))
+        
+        return results
+    
+    def _labels_to_text(self, text: str, labels: List[str]) -> str:
+        """
+        Convert BIES labels back to segmented text.
+        
+        Args:
+            text: Original text
+            labels: BIES labels
+            
+        Returns:
+            Segmented text with spaces
+        """
+        if len(text) != len(labels):
+            # Fallback to original segmentation
+            return self.segment(text)
+        
         result = []
         current_word = ""
         

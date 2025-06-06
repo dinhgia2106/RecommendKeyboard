@@ -33,14 +33,16 @@ class SegmentationResult:
     
     Attributes:
         input_text: Original unsegmented text
-        segmented_text: Text with word boundaries
+        segmented_text: Text with word boundaries (best result)
         processing_time: Time taken for segmentation (seconds)
-        confidence_score: Optional confidence measure
+        confidence_score: Optional confidence measure for best result
+        candidates: List of (segmented_text, confidence) for multiple suggestions
     """
     input_text: str
     segmented_text: str
     processing_time: float
     confidence_score: float = None
+    candidates: List[Tuple[str, float]] = None
 
 
 class CRFInference:
@@ -147,6 +149,47 @@ class CRFInference:
             input_text=original_text,
             segmented_text=segmented_text,
             processing_time=processing_time
+        )
+    
+    def segment_multiple(self, text: str, n_suggestions: int = 5) -> SegmentationResult:
+        """
+        Segment a single text input with multiple suggestions.
+        
+        Args:
+            text: Input text to segment
+            n_suggestions: Number of segmentation suggestions to generate
+            
+        Returns:
+            SegmentationResult with multiple candidates
+        """
+        if not self.model:
+            raise ValueError("Model not loaded! Call load_model() first.")
+        
+        if not text:
+            return SegmentationResult("", "", 0.0, candidates=[("", 1.0)])
+        
+        # Preprocess
+        original_text = text
+        preprocessed_text = self.preprocess_text(text)
+        
+        if not preprocessed_text:
+            return SegmentationResult(original_text, "", 0.0, candidates=[("", 1.0)])
+        
+        # Segment with timing
+        start_time = time.time()
+        candidates = self.model.segment_multiple(preprocessed_text, n_suggestions)
+        processing_time = time.time() - start_time
+        
+        # Best result is the first one (highest confidence)
+        best_result = candidates[0][0] if candidates else ""
+        best_confidence = candidates[0][1] if candidates else 0.0
+        
+        return SegmentationResult(
+            input_text=original_text,
+            segmented_text=best_result,
+            processing_time=processing_time,
+            confidence_score=best_confidence,
+            candidates=candidates
         )
     
     def batch_segment(self, texts: List[str]) -> List[SegmentationResult]:
@@ -331,6 +374,7 @@ def main():
         
         # Interactive mode
         print("\n🔧 Interactive Mode (type 'quit' to exit):")
+        print("💡 Use 'multi:<text>' for multiple suggestions")
         print("-" * 40)
         
         while True:
@@ -343,9 +387,20 @@ def main():
                 if not user_input:
                     continue
                 
-                result = inference.segment(user_input)
-                print(f"Result: '{result.segmented_text}' ({result.processing_time:.4f}s)")
-                print()
+                # Check if user wants multiple suggestions
+                if user_input.startswith('multi:'):
+                    text_to_segment = user_input[6:].strip()
+                    if text_to_segment:
+                        result = inference.segment_multiple(text_to_segment, n_suggestions=5)
+                        print(f"📍 Multiple suggestions for '{result.input_text}':")
+                        for i, (candidate, confidence) in enumerate(result.candidates, 1):
+                            print(f"   {i}. '{candidate}' (confidence: {confidence:.3f})")
+                        print(f"Processing time: {result.processing_time:.4f}s")
+                        print()
+                else:
+                    result = inference.segment(user_input)
+                    print(f"Result: '{result.segmented_text}' ({result.processing_time:.4f}s)")
+                    print()
                 
             except KeyboardInterrupt:
                 break
