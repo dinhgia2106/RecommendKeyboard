@@ -1,0 +1,353 @@
+{
+  "error_cases": [
+    {
+      "input": "bebangcaitam",
+      "true": "bé bằng cái tăm",
+      "pred": "be bang cai tam",
+      "true_words": [
+        "bé",
+        "bằng",
+        "cái",
+        "tăm"
+      ],
+      "pred_words": [
+        "be",
+        "bang",
+        "cai",
+        "tam"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "ancomkhongbiettrodaudua",
+      "true": "ăn cơm không biết trở đầu đũa",
+      "pred": "an com khong biet tro dau dua",
+      "true_words": [
+        "ăn",
+        "cơm",
+        "không",
+        "biết",
+        "trở",
+        "đầu",
+        "đũa"
+      ],
+      "pred_words": [
+        "an",
+        "com",
+        "khong",
+        "biet",
+        "tro",
+        "dau",
+        "dua"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "baica",
+      "true": "bãi cá",
+      "pred": "bai ca",
+      "true_words": [
+        "bãi",
+        "cá"
+      ],
+      "pred_words": [
+        "bai",
+        "ca"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "aogiap",
+      "true": "áo giáp",
+      "pred": "ao giap",
+      "true_words": [
+        "áo",
+        "giáp"
+      ],
+      "pred_words": [
+        "ao",
+        "giap"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "bongvia",
+      "true": "bóng vía",
+      "pred": "bong via",
+      "true_words": [
+        "bóng",
+        "vía"
+      ],
+      "pred_words": [
+        "bong",
+        "via"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "anrauanchao",
+      "true": "ăn rau, ăn cháo",
+      "pred": "an rau an chao",
+      "true_words": [
+        "ăn",
+        "rau,",
+        "ăn",
+        "cháo"
+      ],
+      "pred_words": [
+        "an",
+        "rau",
+        "an",
+        "chao"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "ansuong",
+      "true": "ăn sương",
+      "pred": "an suong",
+      "true_words": [
+        "ăn",
+        "sương"
+      ],
+      "pred_words": [
+        "an",
+        "suong"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "anquy",
+      "true": "An Quy",
+      "pred": "an quy",
+      "true_words": [
+        "An",
+        "Quy"
+      ],
+      "pred_words": [
+        "an",
+        "quy"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "aotu",
+      "true": "ao tù",
+      "pred": "ao tu",
+      "true_words": [
+        "ao",
+        "tù"
+      ],
+      "pred_words": [
+        "ao",
+        "tu"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "bieuchuong",
+      "true": "biểu chương",
+      "pred": "bieu chuong",
+      "true_words": [
+        "biểu",
+        "chương"
+      ],
+      "pred_words": [
+        "bieu",
+        "chuong"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "batdenxanh",
+      "true": "Bật đèn xanh",
+      "pred": "bat den xanh",
+      "true_words": [
+        "Bật",
+        "đèn",
+        "xanh"
+      ],
+      "pred_words": [
+        "bat",
+        "den",
+        "xanh"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "anchonamchuc",
+      "true": "ăn chờ nằm chực",
+      "pred": "an cho nam chuc",
+      "true_words": [
+        "ăn",
+        "chờ",
+        "nằm",
+        "chực"
+      ],
+      "pred_words": [
+        "an",
+        "cho",
+        "nam",
+        "chuc"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "biento",
+      "true": "biến tố",
+      "pred": "bien to",
+      "true_words": [
+        "biến",
+        "tố"
+      ],
+      "pred_words": [
+        "bien",
+        "to"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "baiduong",
+      "true": "bái đường",
+      "pred": "bai duong",
+      "true_words": [
+        "bái",
+        "đường"
+      ],
+      "pred_words": [
+        "bai",
+        "duong"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "annong",
+      "true": "An Nông",
+      "pred": "an nong",
+      "true_words": [
+        "An",
+        "Nông"
+      ],
+      "pred_words": [
+        "an",
+        "nong"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "aptansinh",
+      "true": "ấp tân sinh",
+      "pred": "ap tan sinh",
+      "true_words": [
+        "ấp",
+        "tân",
+        "sinh"
+      ],
+      "pred_words": [
+        "ap",
+        "tan",
+        "sinh"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "batngo",
+      "true": "bát ngô",
+      "pred": "bat ngo",
+      "true_words": [
+        "bát",
+        "ngô"
+      ],
+      "pred_words": [
+        "bat",
+        "ngo"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "bentamlangbennuacan",
+      "true": "bên tám lạng, bên nửa cân",
+      "pred": "ben tam lang ben nua can",
+      "true_words": [
+        "bên",
+        "tám",
+        "lạng,",
+        "bên",
+        "nửa",
+        "cân"
+      ],
+      "pred_words": [
+        "ben",
+        "tam",
+        "lang",
+        "ben",
+        "nua",
+        "can"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "bienbac",
+      "true": "biện bác",
+      "pred": "bien bac",
+      "true_words": [
+        "biện",
+        "bác"
+      ],
+      "pred_words": [
+        "bien",
+        "bac"
+      ],
+      "is_correct": false
+    },
+    {
+      "input": "bientu",
+      "true": "biên tu",
+      "pred": "bien tu",
+      "true_words": [
+        "biên",
+        "tu"
+      ],
+      "pred_words": [
+        "bien",
+        "tu"
+      ],
+      "is_correct": false
+    }
+  ],
+  "correct_cases": [
+    {
+      "input": "anhgiai",
+      "true": "anh giai",
+      "pred": "anh giai",
+      "true_words": [
+        "anh",
+        "giai"
+      ],
+      "pred_words": [
+        "anh",
+        "giai"
+      ],
+      "is_correct": true
+    }
+  ],
+  "error_patterns": {
+    "over_segmentation": 0,
+    "under_segmentation": 0,
+    "word_boundary_errors": 20,
+    "length_distribution": {
+      "12": 2,
+      "23": 1,
+      "5": 2,
+      "6": 5,
+      "7": 3,
+      "11": 1,
+      "4": 1,
+      "10": 2,
+      "8": 1,
+      "9": 1,
+      "19": 1
+    }
+  },
+  "total_errors": 20
+}

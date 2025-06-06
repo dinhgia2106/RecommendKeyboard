@@ -1,0 +1,28 @@
+{
+  "evaluation_date": "2025-06-07T01:52:09.163312",
+  "models_evaluated": [
+    "CRF",
+    "Rule-based"
+  ],
+  "best_model": "CRF",
+  "comparison_results": [
+    {
+      "Model": "CRF",
+      "Word F1": 0.12466270912034537,
+      "Word Precision": 0.12241653418124006,
+      "Word Recall": 0.12699285321605278,
+      "Sentence Accuracy": 0.029333333333333333,
+      "Char F1": 0.9745505605611229,
+      "Test Size": 750
+    },
+    {
+      "Model": "Rule-based",
+      "Word F1": 0.08879581151832461,
+      "Word Precision": 0.07171853856562922,
+      "Word Recall": 0.11654755360087961,
+      "Sentence Accuracy": 0.024,
+      "Char F1": 0.0,
+      "Test Size": 750
+    }
+  ]
+}
