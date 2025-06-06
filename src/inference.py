@@ -180,6 +180,18 @@ class CRFInference:
         candidates = self.model.segment_multiple(preprocessed_text, n_suggestions)
         processing_time = time.time() - start_time
         
+        # Filter out duplicate suggestions, keeping the one with the highest confidence
+        unique_candidates = {}
+        for segmented_text, confidence in candidates:
+            if segmented_text not in unique_candidates or confidence > unique_candidates[segmented_text]:
+                unique_candidates[segmented_text] = confidence
+        
+        # Sort by confidence score in descending order
+        sorted_candidates = sorted(unique_candidates.items(), key=lambda item: item[1], reverse=True)
+        
+        # Assign filtered candidates
+        candidates = sorted_candidates
+        
         # Best result is the first one (highest confidence)
         best_result = candidates[0][0] if candidates else ""
         best_confidence = candidates[0][1] if candidates else 0.0

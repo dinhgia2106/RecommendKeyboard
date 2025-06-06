@@ -119,10 +119,21 @@ class CRFDeploymentManager:
             
             if multiple_suggestions:
                 result = self.inference_engine.segment_multiple(text, n_suggestions)
+
+                # Filter out duplicate suggestions, keeping the one with the highest confidence
+                unique_candidates_map = {}
+                if result.candidates:
+                    for candidate_text, confidence_score in result.candidates:
+                        if candidate_text not in unique_candidates_map or confidence_score > unique_candidates_map[candidate_text]:
+                            unique_candidates_map[candidate_text] = confidence_score
+                
+                # Sort by confidence score in descending order
+                sorted_candidates_list = sorted(unique_candidates_map.items(), key=lambda item: item[1], reverse=True)
+                
                 candidates = [
                     {"text": candidate, "confidence": confidence}
-                    for candidate, confidence in result.candidates
-                ] if result.candidates else None
+                    for candidate, confidence in sorted_candidates_list
+                ] if sorted_candidates_list else None
                 
                 return SegmentationResponse(
                     input_text=result.input_text,

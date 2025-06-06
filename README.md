@@ -1,102 +1,164 @@
-# Vietnamese Word Segmentation using CRF
+# Comprehensive Vietnamese Word Segmentation with CRF
 
-A comprehensive Conditional Random Fields (CRF) based solution for Vietnamese word segmentation that converts unsegmented text (without spaces and diacritics) into properly segmented text with word boundaries.
+An end-to-end, production-ready Conditional Random Fields (CRF) solution for Vietnamese word segmentation. This project transforms unsegmented, non-diacritic Vietnamese text into correctly segmented words, complete with a modular architecture for training, evaluation, and deployment via a REST API and an interactive web demo.
+
+## 🌟 Key Features
+
+- **High-Performance CRF Model**: Achieves over 97% F1-score on a large-scale Vietnamese corpus.
+- **Advanced Feature Engineering**: Combines character-level n-grams, positional attributes, and dictionary-based features for high accuracy.
+- **Multiple Segmentation Suggestions**: The inference engine can provide a ranked list of the N-best segmentation candidates with their confidence scores.
+- **End-to-End Pipeline**: Includes scripts for data preparation, model training, comprehensive evaluation, and deployment.
+- **Dual Deployment Options**:
+  - **FastAPI REST API**: For scalable, production-grade integration.
+  - **Gradio Web Interface**: For interactive demos and real-time testing.
+- **Scalable Data Handling**: Supports streaming for processing very large corpora that don't fit into memory.
 
 ## 🎯 Problem Statement
 
-Vietnamese word segmentation is a challenging NLP task where the goal is to identify word boundaries in continuous text. This project specifically addresses the conversion from:
+The core task is to solve a specific challenge in Vietnamese NLP: identifying word boundaries in a continuous string of text that lacks both spaces and diacritics.
 
-- **Input**: Text without spaces and diacritics (e.g., "xinchao")
-- **Output**: Properly segmented text (e.g., "xin chao")
+- **Input**: `"congnghetuonglailagi"`
+- **Output**: `"cong nghe tuong lai la gi"`
 
-This is particularly useful for processing informal text, transliterated Vietnamese, or text from sources where diacritics and proper spacing have been lost.
+This capability is crucial for processing user-generated content, legacy data, or text from systems where proper formatting and diacritics were lost.
 
-## 🧠 CRF-Based Approach
+## ⚙️ System Architecture
 
-### Why CRF for Word Segmentation?
+The project is designed with a modular and decoupled architecture, ensuring that each component can be understood, tested, and improved independently.
 
-**Conditional Random Fields (CRF)** are particularly well-suited for sequence labeling tasks like word segmentation because they:
+```mermaid
+graph TD;
+    A[Raw Corpus: Viet74K] -->|1. Preprocessing| B(Data Preparation);
+    B -->|`data_preparation.py`| C{Train/Dev/Test Splits};
 
-1. **Model sequential dependencies**: CRF can capture dependencies between adjacent labels, crucial for understanding word boundaries
-2. **Handle rich feature sets**: Can incorporate multiple types of features (character-level, positional, dictionary-based)
-3. **Provide global optimization**: Unlike local classifiers, CRF finds the globally optimal label sequence
-4. **Work well with limited data**: Effective even with moderately-sized training datasets
+    subgraph Training Pipeline
+        direction LR
+        C -->|`training.py`| D(Feature Engineering);
+        D -->|`models.py`| E[CRF Model Training];
+        E --> F(Best Model: `best_model.pkl`);
+        F --> G[Metadata: `f1, params, ...`];
+    end
 
-### Technical Implementation
+    subgraph Evaluation
+        direction LR
+        F -->|`evaluation.py`| H(Model Evaluation);
+        C --> H;
+        H --> I[Performance Metrics & Reports];
+    end
+
+    subgraph Deployment
+        direction LR
+        F -->|`inference.py`| J(Inference Engine);
+        J -->|`deployment.py`| K(FastAPI REST API);
+        J -->|`deployment.py`| L(Gradio Web Demo);
+    end
+
+    style F fill:#d4edda,stroke:#155724
+    style I fill:#f8d7da,stroke:#721c24
+    style K fill:#cce5ff,stroke:#004085
+    style L fill:#cce5ff,stroke:#004085
+```
+
+---
+
+## 🔧 Technical Deep Dive
+
+### 1. Data Preparation (`data_preparation.py`)
+
+The pipeline begins with a raw Vietnamese corpus (`Viet74K_clean.txt`). The `VietnameseDataPreprocessor` class handles the crucial steps:
+
+1.  **Normalization**: The gold-standard text (with spaces and diacritics) is normalized.
+2.  **Input Creation (`X_raw`)**: The text is converted to lowercase, diacritics are removed, and all spaces are stripped to create the model's input format.
+3.  **Label Preservation (`Y_gold`)**: The original, correctly segmented text is preserved as the ground truth.
+4.  **Data Splitting**: The dataset of `(X_raw, Y_gold)` pairs is split into training, development, and test sets. The module supports streaming for handling files too large to fit in memory.
+
+### 2. Feature Engineering & Modeling (`models.py`)
+
+This is the core of the system, where the `CRFSegmenter` and `CRFFeatureExtractor` classes reside.
 
 #### BIES Tagging Scheme
 
-The model uses the BIES (Begin-Inside-End-Single) tagging scheme:
+We treat word segmentation as a sequence labeling problem. Each character in the input text is assigned a label from the **BIES** scheme:
 
-- **B**: Beginning of a word
-- **I**: Inside a word (continuation)
-- **E**: End of a word
-- **S**: Single character word
+- **B**: **B**eginning of a multi-character word
+- **I**: **I**nside of a multi-character word
+- **E**: **E**nd of a multi-character word
+- **S**: **S**ingle-character word
 
-Example:
-
-```
-Input:  x i n c h a o
-Labels: B I E B I I E
-Output: xin chao
-```
-
-#### Feature Engineering
-
-The CRF model leverages rich feature extraction:
-
-1. **Character-level features**:
-
-   - Unigrams: Current character
-   - Bigrams: Character pairs (previous+current, current+next)
-   - Trigrams: Character triplets for wider context
-
-2. **Positional features**:
-
-   - Beginning of sequence (BOS)
-   - End of sequence (EOS)
-   - Relative position indicators
-
-3. **Character type features**:
-
-   - Alphabetic vs numeric
-   - Case information
-   - Special character detection
-
-4. **Dictionary-based features**:
-   - Word boundary hints from known vocabulary
-   - Length-based word matching (1-8 characters)
-   - Frequency-based word preferences
-
-#### Model Architecture
+**Example:**
 
 ```
-Input Text → Feature Extraction → CRF Layer → BIES Labels → Word Reconstruction
+Input:  h o c s i n h
+Labels: B I E B I E B E
+Output: hoc sinh
 ```
 
-The CRF uses L-BFGS optimization with L1/L2 regularization to prevent overfitting.
+#### Feature Extraction
 
-## 📁 Project Structure
+The model's accuracy heavily relies on a rich set of features extracted for each character at each position `i` in the sequence:
+
+- **Character Identity**: The character `text[i]`, its lowercase form, and its type (digit, alpha).
+- **Positional Features**: `BOS` (Beginning of Sequence) and `EOS` (End of Sequence) flags.
+- **Contextual N-grams**:
+  - Previous and next characters (`text[i-1]`, `text[i+1]`).
+  - Bigrams and Trigrams around the current character (e.g., `text[i-1:i+1]`, `text[i:i+3]`).
+- **Dictionary-based Features**:
+  - A dictionary of known Vietnamese words is built from the training corpus.
+  - Features like `dict_match_3` are generated if a substring of length 3 starting at `text[i]` exists in the dictionary. This provides powerful hints about potential word boundaries.
+
+### 3. Training Pipeline (`training.py`)
+
+The `CRFModelTrainer` class orchestrates the training process:
+
+1.  **Load Data**: Loads the train/dev/test splits.
+2.  **Build Dictionary**: Constructs the word dictionary from the training set's ground truth (`Y_gold`).
+3.  **Instantiate Model**: Creates an instance of `CRFSegmenter`, which uses `sklearn_crfsuite.CRF`.
+4.  **Feature Preparation**: Converts the raw text data into feature sequences using the `CRFFeatureExtractor`.
+5.  **Train Model**: Trains the CRF model using the L-BFGS optimization algorithm. The model is validated on the development set after training.
+6.  **Save Best Model**: The best-performing model (based on F1-score) is saved to `models/crf/best_model.pkl`, along with a `_metadata.json` file containing performance metrics and training parameters.
+
+### 4. Evaluation (`evaluation.py`)
+
+The `CRFEvaluator` provides a robust assessment of the model's performance:
+
+- **Word-level Metrics**: Precision, Recall, and F1-score based on the predicted word boundaries.
+- **Sequence-level Metrics**: F1-score calculated from the predicted BIES labels.
+- **Accuracy Metrics**:
+  - **Sentence Accuracy**: The percentage of input sentences that are segmented perfectly.
+  - **Character Accuracy**: The percentage of characters that are correctly classified.
+- **Error Analysis**: Identifies and categorizes common error patterns, such as over-segmentation (too many splits) and under-segmentation (missed splits).
+- **Reporting**: Generates performance charts and detailed CSV reports.
+
+### 5. Inference & Deployment (`inference.py`, `deployment.py`)
+
+The `CRFInference` class loads the trained model and provides a clean interface for segmentation. A key feature is `segment_multiple`, which uses the model's marginal probabilities to generate a ranked list of the most likely segmentation candidates.
+
+The `deployment.py` script exposes this functionality through two interfaces:
+
+- **Gradio Web Demo**: A user-friendly interface for interactive, real-time segmentation.
+- **FastAPI REST API**: Provides production-ready endpoints for integration into other services.
+
+## 📂 Project Structure
 
 ```
 vietnamese-word-segmentation/
 ├── src/
 │   ├── data_preparation.py    # Data preprocessing and corpus handling
-│   ├── models.py             # CRF model implementation
-│   ├── training.py           # Training pipeline and hyperparameter tuning
-│   ├── inference.py          # Model inference and prediction
-│   ├── evaluation.py         # Comprehensive model evaluation
-│   └── deployment.py         # Web interface and API deployment
+│   ├── models.py             # Feature extraction and CRF model implementation
+│   ├── training.py           # Training and validation pipeline
+│   ├── inference.py          # Inference engine for single/multiple suggestions
+│   ├── evaluation.py         # Comprehensive model evaluation and reporting
+│   └── deployment.py         # Gradio and FastAPI deployment
 ├── data/
-│   ├── Viet74K_clean.txt     # Training corpus (74K Vietnamese sentences)
-│   ├── train.txt             # Training split
-│   ├── dev.txt               # Development split
-│   └── test.txt              # Test split
+│   ├── Viet74K_clean.txt     # Main training corpus
+│   ├── train.txt             # Generated training split
+│   ├── dev.txt               # Generated development split
+│   └── test.txt              # Generated test split
 ├── models/
 │   └── crf/
-│       ├── best_model.pkl    # Trained CRF model
-│       └── best_model_metadata.json  # Model metadata and metrics
-├── evaluation_results/       # Evaluation outputs and visualizations
+│       ├── best_model.pkl    # Serialized trained CRF model
+│       └── best_model_metadata.json  # Performance metrics and hyperparameters
+├── evaluation_results/       # Evaluation outputs (reports, charts)
 ├── requirements.txt          # Python dependencies
 └── README.md
 ```
@@ -106,187 +168,97 @@ vietnamese-word-segmentation/
 ### Installation
 
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone <repository-url>
 cd vietnamese-word-segmentation
 
-# Install dependencies
+# 2. Install dependencies
 pip install -r requirements.txt
 ```
 
 ### Training
 
+To train the model from scratch, run:
+
 ```bash
-# Train the CRF model
 python -m src.training
-
-# The training process will:
-# 1. Load and preprocess the corpus
-# 2. Create train/dev/test splits
-# 3. Extract features and build dictionary
-# 4. Train CRF with cross-validation
-# 5. Save the best model
 ```
 
-### Inference
+This process will:
+
+1.  Load the `Viet74K_clean.txt` corpus.
+2.  Create and save `train.txt`, `dev.txt`, and `test.txt` splits in `data/`.
+3.  Build a word dictionary from the training data.
+4.  Train the CRF model and validate it.
+5.  Save the best model and its metadata to `models/crf/`.
+
+### Interactive Demo (Gradio)
+
+To launch the web-based interactive demo:
 
 ```bash
-# Interactive demo
-python -m src.inference
-
-# The demo will show:
-# - Model information and performance metrics
-# - Example segmentations
-# - Interactive input for testing
-```
-
-### Evaluation
-
-```bash
-# Comprehensive model evaluation
-python -m src.evaluation
-
-# Generates:
-# - Detailed performance metrics
-# - Error analysis and patterns
-# - Visualization plots
-# - CSV reports
-```
-
-### Deployment
-
-```bash
-# Web interface (Gradio)
 python -m src.deployment --mode gradio
+```
 
-# REST API (FastAPI)
+Access the interface at `http://localhost:7860`.
+
+### REST API (FastAPI)
+
+To run the production-ready REST API:
+
+```bash
 python -m src.deployment --mode api
-
-# Access at:
-# - Gradio: http://localhost:7860
-# - API: http://localhost:8000
 ```
 
-## 📊 Model Performance
+The API will be available at `http://localhost:8000`. See the docs at `http://localhost:8000/docs`.
 
-The CRF model achieves strong performance on Vietnamese word segmentation:
+#### API Endpoints
 
-| Metric                 | Score | Description                           |
-| ---------------------- | ----- | ------------------------------------- |
-| **F1-Score**           | 0.97+ | Overall sequence labeling accuracy    |
-| **Precision**          | 0.96+ | Accuracy of predicted word boundaries |
-| **Recall**             | 0.98+ | Coverage of true word boundaries      |
-| **Character Accuracy** | 0.95+ | Character-level prediction accuracy   |
-| **Sentence Accuracy**  | 0.85+ | Exact sentence match rate             |
-
-### Performance Analysis
-
-**Strengths**:
-
-- High accuracy on common Vietnamese words
-- Robust handling of compound words
-- Good generalization to unseen text
-- Fast inference speed (~0.001s per text)
-
-**Challenging Cases**:
-
-- Rare or domain-specific terminology
-- Ambiguous word boundaries
-- Very long compound words
-- Text with mixed languages
-
-## 🔧 Technical Details
-
-### Feature Engineering Deep Dive
-
-The CRF model's strength comes from its rich feature representation:
-
-```python
-# Example features for character 'h' in "xinchao"
-features = {
-    'char': 'h',                    # Current character
-    'char.lower': 'h',              # Lowercase version
-    'char-1': 'c',                  # Previous character
-    'char+1': 'a',                  # Next character
-    'bigram-1': 'ch',               # Previous bigram
-    'bigram+1': 'ha',               # Next bigram
-    'trigram-2': 'nch',             # Previous trigram
-    'trigram+2': 'hao',             # Next trigram
-    'dict_match_2': True,           # "ha" in dictionary
-    'dict_match_3': True,           # "hao" in dictionary
-    'BOS': False,                   # Not beginning of sequence
-    'EOS': False                    # Not end of sequence
-}
-```
-
-### Training Pipeline
-
-1. **Data Preparation**:
-
-   - Load Vietnamese corpus (74K sentences)
-   - Remove diacritics and spaces to create input text
-   - Maintain original text as ground truth
-   - Create BIES labels through alignment
-
-2. **Feature Extraction**:
-
-   - Build character vocabulary
-   - Extract word dictionary from corpus
-   - Generate feature matrices for each character
-
-3. **Model Training**:
-
-   - Split data: 70% train, 15% dev, 15% test
-   - Train CRF with L-BFGS optimization
-   - Validate on development set
-   - Save best model based on F1-score
-
-4. **Evaluation**:
-   - Test on held-out data
-   - Generate comprehensive metrics
-   - Analyze error patterns
-   - Create performance visualizations
-
-### Hyperparameters
-
-```python
-crf_params = {
-    'algorithm': 'lbfgs',           # L-BFGS optimization
-    'c1': 0.1,                      # L1 regularization
-    'c2': 0.1,                      # L2 regularization
-    'max_iterations': 100,          # Training iterations
-    'all_possible_transitions': True # Allow all tag transitions
-}
-```
+- `POST /segment`: Segments a single piece of text.
+  - **Body**: `{ "text": "xinchao", "multiple_suggestions": true, "n_suggestions": 5 }`
+- `POST /batch_segment`: Segments a list of texts.
+- `GET /model_info`: Returns metadata about the loaded model.
 
 ## 🔬 Advanced Usage
+
+The modules are designed for easy extension and custom use.
 
 ### Custom Training
 
 ```python
 from src.training import CRFModelTrainer
 
+# Initialize the trainer
 trainer = CRFModelTrainer()
+
+# Run the full pipeline with custom parameters
 model, f1_score = trainer.run_training_pipeline(
-    corpus_path='your_corpus.txt',
-    train_size=10000,              # Use subset for faster training
-    use_dictionary=True,           # Enable dictionary features
-    model_output_dir='models/custom'
+    train_size=20000,          # Use a subset of the data
+    use_dictionary=True,       # Enable dictionary features
+    model_output_dir='models/custom_model'
 )
+print(f"Custom model trained with F1 score: {f1_score:.4f}")
 ```
 
-### Batch Processing
+### Batch Inference
 
 ```python
 from src.inference import CRFInference
 
-inference = CRFInference('models/crf/best_model.pkl')
+# Load the trained model
+inference_engine = CRFInference('models/crf/best_model.pkl')
 
-texts = ["xinchao", "toilasinhhvien", "moibandenquannuocvietnam"]
-results = inference.batch_segment(texts)
+texts_to_segment = ["xinchao", "toilasinhvien", "moibandenquannuocvietnam"]
 
-for result in results:
-    print(f"{result.input_text} → {result.segmented_text}")
+# Get a single best segmentation for each text
+results = inference_engine.batch_segment(texts_to_segment)
+for res in results:
+    print(f"'{res.input_text}' -> '{res.segmented_text}'")
+
+# Get multiple suggestions for a single text
+multi_result = inference_engine.segment_multiple("cochangtraivietlencay", n_suggestions=5)
+for candidate, confidence in multi_result.candidates:
+    print(f"Suggestion: '{candidate}' (Confidence: {confidence:.4f})")
 ```
 
 ### Custom Evaluation
@@ -295,66 +267,29 @@ for result in results:
 from src.evaluation import CRFEvaluator
 from src.models import CRFSegmenter
 
+# Initialize the evaluator and load a model
 evaluator = CRFEvaluator()
 model = CRFSegmenter()
 model.load('models/crf/best_model.pkl')
 
-test_data = [("xinchao", "xin chao"), ("toilasinhhvien", "toi la sinh vien")]
-metrics = evaluator.evaluate_model(model, test_data)
+# Create a sample test set: (unsegmented, ground_truth)
+test_data = [
+    ("xinchao", "xin chao"),
+    ("toilasinhvien", "toi la sinh vien")
+]
 
-print(f"F1-Score: {metrics.f1_score:.4f}")
+# Get detailed performance metrics
+metrics = evaluator.evaluate_model(model, test_data)
+print(f"F1-Score on custom data: {metrics.f1_score:.4f}")
+print(f"Sentence Accuracy: {metrics.sentence_accuracy:.4f}")
 ```
 
 ## 🔮 Future Enhancements
 
-While the current CRF implementation provides excellent performance, potential improvements include:
-
-1. **Hybrid Approaches**:
-
-   - Combine CRF with neural networks (BiLSTM-CRF)
-   - Ensemble methods with multiple models
-
-2. **Advanced Features**:
-
-   - Phonetic similarity features
-   - Semantic embeddings
-   - Cross-lingual transfer learning
-
-3. **Domain Adaptation**:
-
-   - Fine-tuning for specific domains (news, social media, legal)
-   - Active learning for continuous improvement
-
-4. **Performance Optimization**:
-   - Model compression and quantization
-   - GPU acceleration for training
-   - Distributed inference
-
-## 📝 Citation
-
-If you use this work in your research, please cite:
-
-```bibtex
-@misc{vietnamese-word-segmentation-crf,
-  title={Vietnamese Word Segmentation using Conditional Random Fields},
-  author={Your Name},
-  year={2024},
-  url={https://github.com/yourusername/vietnamese-word-segmentation}
-}
-```
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+- **Hybrid Models**: Integrate this CRF model with a neural network (e.g., BiLSTM-CRF) to potentially capture deeper semantic dependencies.
+- **Domain Adaptation**: Fine-tune the model on domain-specific corpora (e.g., legal documents, social media posts) to improve accuracy in specialized contexts.
+- **Active Learning**: Implement an active learning loop where the model can query for labels on uncertain predictions, reducing manual annotation effort.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-## 📞 Contact
-
-For questions or support, please contact [your-email@example.com] or open an issue on GitHub.
-
----
-
-**Note**: This implementation focuses specifically on CRF-based approaches for Vietnamese word segmentation. The model is optimized for accuracy and interpretability while maintaining reasonable computational efficiency.
+Contributions, issues, and feature requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
