@@ -4,14 +4,16 @@ Bước 1: Chuẩn bị Dữ liệu
 - Tiền xử lý: lowercase, loại bỏ dấu, xóa space → tạo X_raw
 - Giữ bản chuẩn (có dấu + khoảng trắng) cho nhãn Y_gold
 - Tạo bộ train/dev/test
+- Hỗ trợ xử lý file lớn với streaming
 """
 
 import re
 import unicodedata
 import random
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Iterator
 import pandas as pd
 from sklearn.model_selection import train_test_split
+import os
 
 class VietnameseDataPreprocessor:
     def __init__(self):
@@ -66,6 +68,28 @@ class VietnameseDataPreprocessor:
             lines = [line.strip() for line in f if line.strip()]
         return lines
     
+    def load_corpus_streaming(self, file_path: str, chunk_size: int = 10000) -> Iterator[List[str]]:
+        """
+        Đọc corpus lớn theo chunk để tiết kiệm memory
+        Trả về iterator của các chunk
+        """
+        chunk = []
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:  # Bỏ qua dòng trống
+                        chunk.append(line)
+                        if len(chunk) >= chunk_size:
+                            yield chunk
+                            chunk = []
+                # Yield chunk cuối cùng nếu còn
+                if chunk:
+                    yield chunk
+        except Exception as e:
+            print(f"Lỗi khi đọc file {file_path}: {e}")
+            return
+    
     def create_training_pairs(self, corpus_lines: List[str]) -> List[Tuple[str, str]]:
         """
         Tạo cặp (X_raw, Y_gold) từ corpus
@@ -80,6 +104,33 @@ class VietnameseDataPreprocessor:
                 if len(x_raw) > 0:
                     pairs.append((x_raw, y_gold))
         return pairs
+    
+    def process_large_corpus_streaming(self, file_path: str, output_file: str, 
+                                     max_samples: int = None, chunk_size: int = 10000):
+        """
+        Xử lý file corpus lớn theo streaming và ghi trực tiếp ra file
+        """
+        print(f"Bắt đầu xử lý file lớn: {file_path}")
+        processed_count = 0
+        
+        with open(output_file, 'w', encoding='utf-8') as out_f:
+            for chunk_lines in self.load_corpus_streaming(file_path, chunk_size):
+                pairs = self.create_training_pairs(chunk_lines)
+                
+                # Ghi pairs vào file
+                for x_raw, y_gold in pairs:
+                    out_f.write(f"{x_raw}\t{y_gold}\n")
+                    processed_count += 1
+                    
+                    # Dừng nếu đạt giới hạn
+                    if max_samples and processed_count >= max_samples:
+                        print(f"Đã xử lý {processed_count} samples, dừng theo giới hạn.")
+                        return processed_count
+                
+                print(f"Đã xử lý {processed_count} samples...", end='\r')
+        
+        print(f"\nHoàn thành! Tổng cộng {processed_count} samples được xử lý.")
+        return processed_count
     
     def create_sequence_labels(self, text_with_spaces: str) -> List[str]:
         """
@@ -123,6 +174,65 @@ class VietnameseDataPreprocessor:
         
         return list(zip(chars, labels))
     
+    def split_large_dataset_file(self, input_file: str, 
+                               train_ratio: float = 0.7, 
+                               dev_ratio: float = 0.15, 
+                               test_ratio: float = 0.15,
+                               random_seed: int = 42):
+        """
+        Chia dataset lớn thành train/dev/test bằng cách đọc streaming
+        """
+        assert abs(train_ratio + dev_ratio + test_ratio - 1.0) < 1e-6
+        
+        # Đầu tiên đếm tổng số dòng
+        print("Đang đếm tổng số dòng...")
+        total_lines = 0
+        with open(input_file, 'r', encoding='utf-8') as f:
+            for _ in f:
+                total_lines += 1
+        
+        print(f"Tổng số dòng: {total_lines}")
+        
+        # Tính toán số dòng cho mỗi split
+        train_lines = int(total_lines * train_ratio)
+        dev_lines = int(total_lines * dev_ratio)
+        test_lines = total_lines - train_lines - dev_lines
+        
+        print(f"Train: {train_lines}, Dev: {dev_lines}, Test: {test_lines}")
+        
+        # Tạo danh sách index và shuffle
+        random.seed(random_seed)
+        indices = list(range(total_lines))
+        random.shuffle(indices)
+        
+        train_indices = set(indices[:train_lines])
+        dev_indices = set(indices[train_lines:train_lines + dev_lines])
+        test_indices = set(indices[train_lines + dev_lines:])
+        
+        # Chia file
+        train_file = input_file.replace('.txt', '_train.txt')
+        dev_file = input_file.replace('.txt', '_dev.txt')
+        test_file = input_file.replace('.txt', '_test.txt')
+        
+        with open(input_file, 'r', encoding='utf-8') as in_f, \
+             open(train_file, 'w', encoding='utf-8') as train_f, \
+             open(dev_file, 'w', encoding='utf-8') as dev_f, \
+             open(test_file, 'w', encoding='utf-8') as test_f:
+            
+            for i, line in enumerate(in_f):
+                if i in train_indices:
+                    train_f.write(line)
+                elif i in dev_indices:
+                    dev_f.write(line)
+                elif i in test_indices:
+                    test_f.write(line)
+                
+                if i % 100000 == 0:
+                    print(f"Đã xử lý {i}/{total_lines} dòng...", end='\r')
+        
+        print(f"\nHoàn thành chia dataset!")
+        return train_file, dev_file, test_file
+    
     def split_dataset(self, pairs: List[Tuple[str, str]], 
                      train_ratio: float = 0.7, 
                      dev_ratio: float = 0.15, 
@@ -160,36 +270,81 @@ class VietnameseDataPreprocessor:
                     pairs.append((x_raw, y_gold))
         return pairs
 
-def main():
-    """Demo sử dụng data preprocessor"""
+def process_full_corpus():
+    """
+    Xử lý file corpus-full.txt lớn và tạo dataset training
+    """
     preprocessor = VietnameseDataPreprocessor()
     
-    # Đọc corpus
-    print("Đang đọc corpus...")
-    corpus_lines = preprocessor.load_corpus('data/Viet74K_clean.txt')
-    print(f"Đã đọc {len(corpus_lines)} dòng")
+    # Kiểm tra file corpus-full.txt có tồn tại không
+    corpus_file = 'data/corpus-full.txt'
+    if not os.path.exists(corpus_file):
+        print(f"Không tìm thấy file: {corpus_file}")
+        return
     
-    # Tạo training pairs
-    print("Đang tạo training pairs...")
-    pairs = preprocessor.create_training_pairs(corpus_lines[:1000])  # Test với 1000 dòng đầu
-    print(f"Đã tạo {len(pairs)} pairs")
+    # Xử lý file lớn với streaming
+    print("Bắt đầu xử lý corpus-full.txt...")
+    processed_file = 'data/corpus_processed.txt'
     
-    # Hiển thị một số ví dụ
-    print("\nVí dụ training pairs:")
-    for i, (x_raw, y_gold) in enumerate(pairs[:5]):
-        print(f"{i+1}. X_raw: '{x_raw}' -> Y_gold: '{y_gold}'")
+    # Giới hạn số samples để test (có thể bỏ giới hạn này để xử lý toàn bộ)
+    max_samples = 1000000  # 1 triệu samples để test
     
-    # Chia dataset
-    print("\nChia dataset...")
-    train_set, dev_set, test_set = preprocessor.split_dataset(pairs)
-    print(f"Train: {len(train_set)}, Dev: {len(dev_set)}, Test: {len(test_set)}")
+    processed_count = preprocessor.process_large_corpus_streaming(
+        corpus_file, processed_file, max_samples=max_samples, chunk_size=10000
+    )
     
-    # Lưu dataset
-    print("Lưu dataset...")
-    preprocessor.save_dataset(train_set, 'data/train.txt')
-    preprocessor.save_dataset(dev_set, 'data/dev.txt')
-    preprocessor.save_dataset(test_set, 'data/test.txt')
-    print("Hoàn thành!")
+    print(f"Đã xử lý {processed_count} samples từ corpus-full.txt")
+    
+    # Chia dataset thành train/dev/test
+    print("Chia dataset thành train/dev/test...")
+    train_file, dev_file, test_file = preprocessor.split_large_dataset_file(processed_file)
+    
+    print(f"Dataset đã được chia:")
+    print(f"- Train: {train_file}")
+    print(f"- Dev: {dev_file}")  
+    print(f"- Test: {test_file}")
+    
+    return train_file, dev_file, test_file
+
+def main():
+    """Demo sử dụng data preprocessor với cả file nhỏ và lớn"""
+    preprocessor = VietnameseDataPreprocessor()
+    
+    print("=== XỬ LÝ FILE NHỎ (Viet74K_clean.txt) ===")
+    # Đọc corpus nhỏ
+    if os.path.exists('data/Viet74K_clean.txt'):
+        print("Đang đọc Viet74K_clean.txt...")
+        corpus_lines = preprocessor.load_corpus('data/Viet74K_clean.txt')
+        print(f"Đã đọc {len(corpus_lines)} dòng")
+        
+        # Tạo training pairs
+        print("Đang tạo training pairs...")
+        pairs = preprocessor.create_training_pairs(corpus_lines)
+        print(f"Đã tạo {len(pairs)} pairs")
+        
+        # Hiển thị một số ví dụ
+        print("\nVí dụ training pairs từ Viet74K:")
+        for i, (x_raw, y_gold) in enumerate(pairs[:3]):
+            print(f"{i+1}. X_raw: '{x_raw}' -> Y_gold: '{y_gold}'")
+        
+        # Chia dataset
+        print("\nChia dataset...")
+        train_set, dev_set, test_set = preprocessor.split_dataset(pairs)
+        print(f"Train: {len(train_set)}, Dev: {len(dev_set)}, Test: {len(test_set)}")
+        
+        # Lưu dataset từ Viet74K
+        print("Lưu dataset từ Viet74K...")
+        preprocessor.save_dataset(train_set, 'data/viet74k_train.txt')
+        preprocessor.save_dataset(dev_set, 'data/viet74k_dev.txt')
+        preprocessor.save_dataset(test_set, 'data/viet74k_test.txt')
+    
+    print("\n=== XỬ LÝ FILE LỚN (corpus-full.txt) ===")
+    # Xử lý file lớn
+    if os.path.exists('data/corpus-full.txt'):
+        train_file, dev_file, test_file = process_full_corpus()
+        print("Hoàn thành xử lý corpus-full.txt!")
+    else:
+        print("Không tìm thấy corpus-full.txt")
 
 if __name__ == "__main__":
     main() 

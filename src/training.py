@@ -44,29 +44,79 @@ class CRFModelTrainer:
         self.best_f1 = 0.0
         self.training_history = []
     
-    def prepare_data(self, corpus_path: str, 
+    def prepare_data(self, corpus_path: str = None, 
                     train_size: int = None,
-                    rebuild_splits: bool = True) -> Tuple[List, List, List]:
+                    rebuild_splits: bool = False,
+                    use_large_corpus: bool = True,
+                    combine_all_datasets: bool = False) -> Tuple[List, List, List]:
         """
         Prepare training, development, and test datasets.
         
         Args:
-            corpus_path: Path to the corpus file
+            corpus_path: Path to the corpus file (legacy parameter)
             train_size: Maximum number of samples to use (None for all)
             rebuild_splits: Whether to rebuild train/dev/test splits
+            use_large_corpus: Whether to use the large corpus from corpus-full.txt
+            combine_all_datasets: Whether to combine ALL available datasets (Viet74K + corpus-full.txt)
             
         Returns:
             Tuple of (train_set, dev_set, test_set)
         """
         print("🔄 Preparing data for CRF training...")
         
-        # Check for existing splits
+        if combine_all_datasets:
+            print("🚀 COMBINING ALL DATASETS: Viet74K + corpus-full.txt")
+            return self._combine_all_datasets(train_size)
+        
+        if use_large_corpus:
+            # Use processed files from corpus-full.txt
+            train_path = "data/corpus_full_processed_train.txt"
+            dev_path = "data/corpus_full_processed_dev.txt" 
+            test_path = "data/corpus_full_processed_test.txt"
+            
+            if all(os.path.exists(p) for p in [train_path, dev_path, test_path]):
+                print("📂 Loading large corpus dataset from corpus-full.txt processing...")
+                
+                # Load with streaming for large files
+                def load_large_dataset(file_path: str, max_samples: int = None):
+                    pairs = []
+                    count = 0
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if '\t' in line:
+                                x_raw, y_gold = line.strip().split('\t', 1)
+                                pairs.append((x_raw, y_gold))
+                                count += 1
+                                
+                                if max_samples and count >= max_samples:
+                                    break
+                                
+                                if count % 100000 == 0:
+                                    print(f"Loaded {count:,} samples...", end='\r')
+                    
+                    print(f"Loaded {len(pairs):,} samples from {file_path}")
+                    return pairs
+                
+                train_set = load_large_dataset(train_path, train_size)
+                # For dev/test, limit to reasonable size for evaluation
+                dev_set = load_large_dataset(dev_path, min(50000, train_size//10) if train_size else 50000)
+                test_set = load_large_dataset(test_path, min(20000, train_size//20) if train_size else 20000)
+                
+                print(f"✅ Loaded LARGE dataset: Train({len(train_set):,}), Dev({len(dev_set):,}), Test({len(test_set):,})")
+                return train_set, dev_set, test_set
+            else:
+                print("⚠️  Large corpus files not found, falling back to standard processing...")
+        
+        # Original small corpus processing (fallback)
         train_path = "data/train.txt"
         dev_path = "data/dev.txt" 
         test_path = "data/test.txt"
         
         if rebuild_splits or not all(os.path.exists(p) for p in [train_path, dev_path, test_path]):
             print("📖 Loading corpus and creating new splits...")
+            
+            if not corpus_path:
+                corpus_path = 'data/Viet74K_clean.txt'
             
             # Load corpus
             corpus_lines = self.preprocessor.load_corpus(corpus_path)
@@ -92,7 +142,7 @@ class CRFModelTrainer:
             
             print(f"💾 Saved splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
         else:
-            print("📂 Loading existing data splits...")
+            print("📂 Loading existing small corpus data splits...")
             train_set = self.preprocessor.load_dataset(train_path)
             dev_set = self.preprocessor.load_dataset(dev_path)
             test_set = self.preprocessor.load_dataset(test_path)
@@ -100,6 +150,82 @@ class CRFModelTrainer:
             print(f"✅ Loaded splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
         
         return train_set, dev_set, test_set
+    
+    def _combine_all_datasets(self, train_size: int = None) -> Tuple[List, List, List]:
+        """
+        Combine ALL available datasets: Viet74K + corpus-full.txt + existing splits
+        """
+        all_train_pairs = []
+        all_dev_pairs = []
+        all_test_pairs = []
+        
+        # 1. Load Viet74K data if available
+        if os.path.exists('data/Viet74K_clean.txt'):
+            print("📚 Loading Viet74K dataset...")
+            viet74k_lines = self.preprocessor.load_corpus('data/Viet74K_clean.txt')
+            viet74k_pairs = self.preprocessor.create_training_pairs(viet74k_lines)
+            
+            # Split Viet74K data
+            v_train, v_dev, v_test = self.preprocessor.split_dataset(viet74k_pairs, random_seed=1)
+            all_train_pairs.extend(v_train)
+            all_dev_pairs.extend(v_dev)
+            all_test_pairs.extend(v_test)
+            print(f"✅ Added Viet74K: Train({len(v_train):,}), Dev({len(v_dev):,}), Test({len(v_test):,})")
+        
+        # 2. Load large corpus data if available
+        large_files = [
+            'data/corpus_full_processed_train.txt',
+            'data/corpus_full_processed_dev.txt', 
+            'data/corpus_full_processed_test.txt'
+        ]
+        
+        if all(os.path.exists(f) for f in large_files):
+            print("📈 Loading Large Corpus dataset...")
+            
+            def load_dataset_lines(file_path: str, max_samples: int = None):
+                pairs = []
+                count = 0
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if '\t' in line:
+                            x_raw, y_gold = line.strip().split('\t', 1)
+                            pairs.append((x_raw, y_gold))
+                            count += 1
+                            
+                            if max_samples and count >= max_samples:
+                                break
+                            
+                            if count % 100000 == 0:
+                                print(f"Loading large corpus: {count:,} samples...", end='\r')
+                
+                print(f"Loaded {len(pairs):,} from {file_path}")
+                return pairs
+            
+            # Load large corpus with limits to balance datasets
+            large_train_limit = train_size - len(all_train_pairs) if train_size else None
+            large_train = load_dataset_lines(large_files[0], large_train_limit)
+            large_dev = load_dataset_lines(large_files[1], 30000)  # Limit dev size
+            large_test = load_dataset_lines(large_files[2], 10000)  # Limit test size
+            
+            all_train_pairs.extend(large_train)
+            all_dev_pairs.extend(large_dev)
+            all_test_pairs.extend(large_test)
+            print(f"✅ Added Large Corpus: Train({len(large_train):,}), Dev({len(large_dev):,}), Test({len(large_test):,})")
+        
+        # 3. Shuffle combined datasets
+        import random
+        random.seed(42)
+        random.shuffle(all_train_pairs)
+        random.shuffle(all_dev_pairs) 
+        random.shuffle(all_test_pairs)
+        
+        # 4. Apply final train_size limit if specified
+        if train_size and len(all_train_pairs) > train_size:
+            all_train_pairs = all_train_pairs[:train_size]
+        
+        print(f"🎯 FINAL COMBINED DATASET: Train({len(all_train_pairs):,}), Dev({len(all_dev_pairs):,}), Test({len(all_test_pairs):,})")
+        
+        return all_train_pairs, all_dev_pairs, all_test_pairs
     
     def build_features(self, train_set: List[Tuple[str, str]], 
                       use_dictionary: bool = True) -> CRFSegmenter:
@@ -192,8 +318,15 @@ class CRFModelTrainer:
         
         print("🔍 Evaluating model performance...")
         
-        # Limit evaluation for speed during development
-        eval_samples = min(100, len(test_set))
+        # Adaptive evaluation sample size based on dataset size
+        if len(test_set) > 10000:
+            eval_samples = 2000  # For large datasets, use more samples but not all
+        elif len(test_set) > 1000:
+            eval_samples = 500
+        else:
+            eval_samples = min(100, len(test_set))
+        
+        print(f"📊 Evaluating on {eval_samples} samples from {len(test_set)} total test samples")
         
         for x_raw, y_gold in tqdm(test_set[:eval_samples], desc="Evaluating"):
             try:
@@ -245,29 +378,41 @@ class CRFModelTrainer:
         
         print("✅ Model saved successfully!")
     
-    def run_training_pipeline(self, corpus_path: str, 
+    def run_training_pipeline(self, corpus_path: str = None, 
                              train_size: int = None,
                              use_dictionary: bool = True,
+                             use_large_corpus: bool = True,
+                             combine_all_datasets: bool = False,
                              model_output_dir: str = "models/crf") -> Tuple[CRFSegmenter, float]:
         """
         Run complete CRF training pipeline.
         
         Args:
-            corpus_path: Path to training corpus
+            corpus_path: Path to training corpus (legacy)
             train_size: Maximum samples to use
             use_dictionary: Whether to use dictionary features
+            use_large_corpus: Whether to use large corpus from corpus-full.txt
+            combine_all_datasets: Whether to combine ALL datasets (Viet74K + corpus-full.txt)
             model_output_dir: Directory to save trained model
             
         Returns:
             Tuple of (trained_model, test_f1_score)
         """
         print("🚀 Starting CRF training pipeline for Vietnamese word segmentation")
+        if combine_all_datasets:
+            print("🎯 Using ALL DATASETS: Viet74K + corpus-full.txt")
+        elif use_large_corpus:
+            print("📈 Using LARGE CORPUS from corpus-full.txt processing")
+        else:
+            print("📚 Using Viet74K corpus")
         print("=" * 70)
         
         # Step 1: Prepare data
         train_set, dev_set, test_set = self.prepare_data(
             corpus_path, 
-            train_size=train_size
+            train_size=train_size,
+            use_large_corpus=use_large_corpus,
+            combine_all_datasets=combine_all_datasets
         )
         
         # Step 2: Build model with features
@@ -292,6 +437,9 @@ class CRFModelTrainer:
             'dev_size': len(dev_set),
             'test_size': len(test_set),
             'use_dictionary': use_dictionary,
+            'use_large_corpus': use_large_corpus,
+            'combine_all_datasets': combine_all_datasets,
+            'data_source': 'ALL_DATASETS' if combine_all_datasets else ('corpus-full.txt' if use_large_corpus else 'Viet74K_clean.txt'),
             'training_history': self.training_history,
             'feature_info': {
                 'dictionary_size': len(self.model.feature_extractor.dictionary) if self.model.feature_extractor.dictionary else 0,
@@ -307,29 +455,30 @@ class CRFModelTrainer:
         print("🎉 CRF training pipeline completed successfully!")
         print(f"📈 Model performance: F1 = {test_f1:.4f}")
         print(f"💾 Model saved to: {model_path}")
+        print(f"📊 Training data: {metadata['data_source']} ({len(train_set):,} samples)")
         
         return self.model, test_f1
 
 
 def main():
     """
-    Main training script for CRF model.
+    Main training script for CRF model with LARGE CORPUS support.
     
-    This script demonstrates how to train a CRF model for Vietnamese 
-    word segmentation with different configurations.
+    This script trains a CRF model using the processed corpus-full.txt dataset.
     """
-    print("🇻🇳 Vietnamese Word Segmentation - CRF Training")
-    print("=" * 60)
+    print("🇻🇳 Vietnamese Word Segmentation - CRF Training with LARGE CORPUS")
+    print("=" * 70)
     
     # Initialize trainer
     trainer = CRFModelTrainer()
     
-    # Configuration
+    # Configuration for LARGE CORPUS training
     config = {
-        'corpus_path': 'data/Viet74K_clean.txt',
-        'train_size': 5000,  # Use subset for faster training during development
+        'corpus_path': None,  # Not needed when using large corpus
+        'train_size': 500000,  # Use 500K samples for training (adjust as needed)
         'use_dictionary': True,
-        'model_output_dir': 'models/crf'
+        'use_large_corpus': True,  # NEW: Use processed corpus-full.txt
+        'model_output_dir': 'models/crf_large'
     }
     
     print("📋 Training Configuration:")
@@ -342,13 +491,14 @@ def main():
         model, test_f1 = trainer.run_training_pipeline(**config)
         
         # Summary
-        print("\n" + "=" * 60)
+        print("\n" + "=" * 70)
         print("🎊 TRAINING SUMMARY")
-        print("=" * 60)
+        print("=" * 70)
         print(f"✅ Model Type: CRF with BIES tagging")
         print(f"📊 Final F1-score: {test_f1:.4f}")
         print(f"🔧 Dictionary Features: {config['use_dictionary']}")
-        print(f"📚 Training Samples: {config['train_size']}")
+        print(f"📈 Large Corpus: {config['use_large_corpus']}")
+        print(f"📚 Training Samples: {config['train_size']:,}")
         print(f"💾 Model Location: {config['model_output_dir']}/best_model.pkl")
         
         # Performance interpretation
@@ -360,6 +510,11 @@ def main():
             print("📈 Decent performance, consider tuning hyperparameters")
         else:
             print("⚠️  Performance needs improvement, check data quality")
+        
+        print("\n🚀 Next steps:")
+        print("   1. Test the model with: python test_inference.py")
+        print("   2. Run demo with: python demo.py")
+        print("   3. Deploy with: python src/deployment.py")
         
     except Exception as e:
         print(f"❌ Training failed: {e}")

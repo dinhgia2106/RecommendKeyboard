@@ -421,7 +421,7 @@ def main():
     parser = argparse.ArgumentParser(description="Deploy Vietnamese Word Segmentation CRF Model")
     parser.add_argument("--mode", choices=["gradio", "api", "both"], default="gradio",
                        help="Deployment mode")
-    parser.add_argument("--model-path", default="models/crf/best_model.pkl",
+    parser.add_argument("--model-path", default="models/crf_large/best_model.pkl",
                        help="Path to trained model")
     parser.add_argument("--host", default="127.0.0.1", help="Host address")
     parser.add_argument("--port", type=int, default=7860, help="Port number")

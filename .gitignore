@@ -1,2 +1,6 @@
 /models
 /data/corpus-full.txt
+/data/corpus_full_processed_dev.txt
+/data/corpus_full_processed_train.txt
+/data/corpus_full_processed_test.txt
+/data/corpus_full_processed.txt
