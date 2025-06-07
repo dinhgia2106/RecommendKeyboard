@@ -95,9 +95,9 @@ class CRFDeploymentManager:
         try:
             logger.info(f"Loading CRF model from {self.model_path}")
             self.inference_engine = CRFInference(self.model_path)
-            logger.info("✅ CRF model loaded successfully for deployment")
+            logger.info("CRF model loaded successfully for deployment")
         except Exception as e:
-            logger.error(f"❌ Failed to load model: {e}")
+            logger.error(f"Failed to load model: {e}")
             raise
     
     def segment_text(self, text: str, preprocess: bool = True, multiple_suggestions: bool = False, n_suggestions: int = 5) -> SegmentationResponse:
@@ -223,41 +223,41 @@ def create_gradio_interface() -> gr.Interface:
     def segment_interface(text: str, multiple_suggestions: bool = True) -> tuple:
         """Interface function for Gradio with real-time processing."""
         if not deployment_manager:
-            return "❌ Model not loaded", 0.0, "Error: Model not initialized", ""
+            return "Model not loaded", 0.0, "Error: Model not initialized", ""
         
         # Handle empty text
         if not text or not text.strip():
-            return "", 0.0, "💡 Nhập text tiếng Việt không dấu để xem kết quả real-time", ""
+            return "", 0.0, "Nhập text tiếng Việt không dấu để xem kết quả real-time", ""
         
         # Show processing status for real-time feedback
         try:
             response = deployment_manager.segment_text(text, multiple_suggestions=multiple_suggestions, n_suggestions=8)
             
             if response.success:
-                status = f"✅ Processed in {response.processing_time:.4f}s | Characters: {len(text)} | Auto-update: ON"
+                status = f"Processed in {response.processing_time:.4f}s | Characters: {len(text)} | Auto-update: ON"
                 
                 # Format multiple suggestions if available
                 suggestions_text = ""
                 if response.candidates and multiple_suggestions:
-                    suggestions_text = "📍 Multiple suggestions (real-time):\n"
+                    suggestions_text = "Multiple suggestions (real-time):\n"
                     for i, candidate in enumerate(response.candidates, 1):
                         conf_text = f" (confidence: {candidate['confidence']:.3f})" if 'confidence' in candidate else ""
-                        mark = "👑 " if i == 1 else "   "
+                        mark = "* " if i == 1 else "  "
                         suggestions_text += f"{mark}{i}. {candidate['text']}{conf_text}\n"
                 elif not multiple_suggestions:
-                    suggestions_text = "ℹ️ Multiple suggestions is disabled. Enable checkbox to see more options."
+                    suggestions_text = "Multiple suggestions is disabled. Enable checkbox to see more options."
                 
                 return response.segmented_text, response.processing_time, status, suggestions_text
             else:
-                return "", 0.0, f"❌ Error: {response.error_message}", ""
+                return "", 0.0, f"Error: {response.error_message}", ""
                 
         except Exception as e:
-            return "", 0.0, f"❌ Processing error: {str(e)}", ""
+            return "", 0.0, f"Processing error: {str(e)}", ""
     
     def batch_segment_interface(texts: str) -> str:
         """Batch segmentation interface for Gradio."""
         if not deployment_manager:
-            return "❌ Model not loaded"
+            return "Model not loaded"
         
         if not texts.strip():
             return "Please enter texts to segment (one per line)"
@@ -277,8 +277,8 @@ def create_gradio_interface() -> gr.Interface:
             else:
                 results.append(f"{i+1}. '{result.input_text}' → ERROR: {result.error_message}")
         
-        summary = f"\n📊 Summary: {batch_response.success_count} successful, {batch_response.error_count} errors"
-        summary += f"\n⏱️  Total time: {batch_response.total_processing_time:.2f}s"
+        summary = f"\nSummary: {batch_response.success_count} successful, {batch_response.error_count} errors"
+        summary += f"\nTotal time: {batch_response.total_processing_time:.2f}s"
         
         return "\n".join(results) + "\n" + summary
     
@@ -295,47 +295,47 @@ def create_gradio_interface() -> gr.Interface:
     
     # Create interface with tabs
     with gr.Blocks(title="Vietnamese Word Segmentation - CRF", theme=gr.themes.Soft()) as demo:
-        gr.Markdown("# 🇻🇳 Vietnamese Word Segmentation using CRF")
-        gr.Markdown("🚀 **Real-time segmentation** - Nhập text và xem kết quả ngay lập tức!")
-        gr.Markdown("💡 **Multiple suggestions enabled** - Xem nhiều cách chia từ khác nhau với confidence scores")
+        gr.Markdown("# Vietnamese Word Segmentation using CRF")
+        gr.Markdown("**Real-time segmentation** - Nhập text và xem kết quả ngay lập tức!")
+        gr.Markdown("**Multiple suggestions enabled** - Xem nhiều cách chia từ khác nhau với confidence scores")
         
-        with gr.Tab("📝 Real-time Segmentation"):
+        with gr.Tab("Real-time Segmentation"):
             with gr.Row():
                 with gr.Column(scale=1):
                     input_text = gr.Textbox(
-                        label="🔤 Input Text (Vietnamese without spaces)",
+                        label="Input Text (Vietnamese without spaces)",
                         placeholder="Ví dụ: xinchao, toilasinhhvien, demanoicacbac...",
                         lines=3,
                         info="Tự động hiển thị kết quả khi bạn nhập"
                     )
                     
                     multiple_suggestions = gr.Checkbox(
-                        label="📊 Show multiple suggestions",
+                        label="Show multiple suggestions",
                         value=True,
                         info="Hiển thị nhiều cách chia từ khác nhau"
                     )
                     processing_time = gr.Number(
-                        label="⏱️ Processing Time (s)",
+                        label="Processing Time (s)",
                         interactive=False,
                         precision=4
                     )
                 
                 with gr.Column(scale=1):
                     output_text = gr.Textbox(
-                        label="🎯 Best Segmented Result",
+                        label="Best Segmented Result",
                         lines=3,
                         interactive=False,
                         info="Kết quả tốt nhất (confidence cao nhất)"
                     )
                     status_text = gr.Textbox(
-                        label="ℹ️ Status",
+                        label="Status",
                         interactive=False,
                         lines=1
                     )
             
             # Multiple suggestions output
             suggestions_output = gr.Textbox(
-                label="📍 Multiple Suggestions (with confidence scores)",
+                label="Multiple Suggestions (with confidence scores)",
                 lines=8,
                 interactive=False,
                 visible=True,
@@ -343,7 +343,7 @@ def create_gradio_interface() -> gr.Interface:
             )
             
             # Examples
-            gr.Markdown("### 📋 Quick Examples:")
+            gr.Markdown("### Quick Examples:")
             gr.Markdown("*Click vào example để test nhanh:*")
             
             example_texts = [
@@ -360,7 +360,7 @@ def create_gradio_interface() -> gr.Interface:
                 outputs=[output_text, processing_time, status_text, suggestions_output],
                 fn=segment_interface,
                 cache_examples=False,
-                label="🚀 Try these examples:"
+                label="Try these examples:"
             )
         
         with gr.Tab("Batch Segmentation"):
@@ -388,7 +388,7 @@ def create_gradio_interface() -> gr.Interface:
                 gr.Markdown("### Model Details")
                 gr.JSON(model_info, label="Model Information")
             else:
-                gr.Markdown("❌ Model not loaded")
+                gr.Markdown("Model not loaded")
         
         # Event handlers - Real-time auto-update
         input_text.change(  # Trigger on every text change
@@ -437,10 +437,10 @@ def create_gradio_interface() -> gr.Interface:
 async def lifespan(app: FastAPI):
     """FastAPI lifespan manager."""
     # Startup
-    logger.info("🚀 Starting Vietnamese Word Segmentation API")
+    logger.info("Starting Vietnamese Word Segmentation API")
     yield
     # Shutdown
-    logger.info("👋 Shutting down API")
+    logger.info("Shutting down API")
 
 
 app = FastAPI(
@@ -532,23 +532,23 @@ def main():
     # Initialize deployment
     try:
         initialize_deployment(args.model_path)
-        logger.info("✅ Deployment manager initialized")
+        logger.info("Deployment manager initialized")
     except Exception as e:
-        logger.error(f"❌ Failed to initialize deployment: {e}")
+        logger.error(f"Failed to initialize deployment: {e}")
         sys.exit(1)
     
     # Deploy based on mode
     if args.mode == "gradio":
-        logger.info("🌐 Launching Gradio interface...")
+        logger.info("Launching Gradio interface...")
         demo = create_gradio_interface()
         demo.launch(server_name=args.host, server_port=args.port, share=False)
         
     elif args.mode == "api":
-        logger.info("🚀 Launching FastAPI server...")
+        logger.info("Launching FastAPI server...")
         uvicorn.run(app, host=args.host, port=args.api_port)
         
     elif args.mode == "both":
-        logger.info("🚀 Launching both Gradio and FastAPI...")
+        logger.info("Launching both Gradio and FastAPI...")
         # In production, you'd want to run these in separate processes
         # For demo, we'll just show how to configure both
         print(f"Gradio would run on: http://{args.host}:{args.port}")

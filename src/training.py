@@ -70,10 +70,10 @@ class CRFModelTrainer:
         Returns:
             Tuple of (train_set, dev_set, test_set)
         """
-        print("🔄 Preparing data for CRF training...")
+        print("Preparing data for CRF training...")
         
         if combine_all_datasets:
-            print("🚀 COMBINING ALL DATASETS: Viet74K + corpus-full.txt")
+            print("COMBINING ALL DATASETS: Viet74K + corpus-full.txt")
             return self._combine_all_datasets(train_size)
         
         if use_large_corpus:
@@ -83,7 +83,7 @@ class CRFModelTrainer:
             test_path = "data/corpus_full_processed_test.txt"
             
             if all(os.path.exists(p) for p in [train_path, dev_path, test_path]):
-                print("📂 Loading large corpus dataset from corpus-full.txt processing...")
+                print("Loading large corpus dataset from corpus-full.txt processing...")
                 
                 # Load with streaming for large files
                 def load_large_dataset(file_path: str, max_samples: int = None):
@@ -101,19 +101,16 @@ class CRFModelTrainer:
                                 
                                 if count % 100000 == 0:
                                     print(f"Loaded {count:,} samples...", end='\r')
-                    
-                    print(f"Loaded {len(pairs):,} samples from {file_path}")
-                    return pairs
                 
                 train_set = load_large_dataset(train_path, train_size)
                 # For dev/test, limit to reasonable size for evaluation
                 dev_set = load_large_dataset(dev_path, min(50000, train_size//10) if train_size else 50000)
                 test_set = load_large_dataset(test_path, min(20000, train_size//20) if train_size else 20000)
                 
-                print(f"✅ Loaded LARGE dataset: Train({len(train_set):,}), Dev({len(dev_set):,}), Test({len(test_set):,})")
+                print(f"Loaded LARGE dataset: Train({len(train_set):,}), Dev({len(dev_set):,}), Test({len(test_set):,})")
                 return train_set, dev_set, test_set
             else:
-                print("⚠️  Large corpus files not found, falling back to standard processing...")
+                print("Large corpus files not found, falling back to standard processing...")
         
         # Original small corpus processing (fallback)
         train_path = "data/train.txt"
@@ -121,7 +118,7 @@ class CRFModelTrainer:
         test_path = "data/test.txt"
         
         if rebuild_splits or not all(os.path.exists(p) for p in [train_path, dev_path, test_path]):
-            print("📖 Loading corpus and creating new splits...")
+            print("Loading corpus and creating new splits...")
             
             if not corpus_path:
                 corpus_path = 'data/Viet74K_clean.txt'
@@ -131,13 +128,13 @@ class CRFModelTrainer:
             
             if train_size:
                 corpus_lines = corpus_lines[:train_size]
-                print(f"📊 Using first {train_size} samples from corpus")
+                print(f"Using first {train_size} samples from corpus")
             
-            print(f"📚 Loaded {len(corpus_lines)} lines from corpus")
+            print(f"Loaded {len(corpus_lines)} lines from corpus")
             
             # Create training pairs
             pairs = self.preprocessor.create_training_pairs(corpus_lines)
-            print(f"✅ Created {len(pairs)} training pairs")
+            print(f"Created {len(pairs)} training pairs")
             
             # Split dataset
             train_set, dev_set, test_set = self.preprocessor.split_dataset(pairs)
@@ -148,14 +145,14 @@ class CRFModelTrainer:
             self.preprocessor.save_dataset(dev_set, dev_path)
             self.preprocessor.save_dataset(test_set, test_path)
             
-            print(f"💾 Saved splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
+            print(f"Saved splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
         else:
-            print("📂 Loading existing small corpus data splits...")
+            print("Loading existing small corpus data splits...")
             train_set = self.preprocessor.load_dataset(train_path)
             dev_set = self.preprocessor.load_dataset(dev_path)
             test_set = self.preprocessor.load_dataset(test_path)
             
-            print(f"✅ Loaded splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
+            print(f"Loaded splits: Train({len(train_set)}), Dev({len(dev_set)}), Test({len(test_set)})")
         
         return train_set, dev_set, test_set
     
@@ -169,7 +166,7 @@ class CRFModelTrainer:
         
         # 1. Load Viet74K data if available
         if os.path.exists('data/Viet74K_clean.txt'):
-            print("📚 Loading Viet74K dataset...")
+            print("Loading Viet74K dataset...")
             viet74k_lines = self.preprocessor.load_corpus('data/Viet74K_clean.txt')
             viet74k_pairs = self.preprocessor.create_training_pairs(viet74k_lines)
             
@@ -178,7 +175,7 @@ class CRFModelTrainer:
             all_train_pairs.extend(v_train)
             all_dev_pairs.extend(v_dev)
             all_test_pairs.extend(v_test)
-            print(f"✅ Added Viet74K: Train({len(v_train):,}), Dev({len(v_dev):,}), Test({len(v_test):,})")
+            print(f"Added Viet74K: Train({len(v_train):,}), Dev({len(v_dev):,}), Test({len(v_test):,})")
         
         # 2. Load large corpus data if available
         large_files = [
@@ -188,7 +185,7 @@ class CRFModelTrainer:
         ]
         
         if all(os.path.exists(f) for f in large_files):
-            print("📈 Loading Large Corpus dataset...")
+            print("Loading Large Corpus dataset...")
             
             def load_dataset_lines(file_path: str, max_samples: int = None):
                 pairs = []
@@ -218,7 +215,7 @@ class CRFModelTrainer:
             all_train_pairs.extend(large_train)
             all_dev_pairs.extend(large_dev)
             all_test_pairs.extend(large_test)
-            print(f"✅ Added Large Corpus: Train({len(large_train):,}), Dev({len(large_dev):,}), Test({len(large_test):,})")
+            print(f"Added Large Corpus: Train({len(large_train):,}), Dev({len(large_dev):,}), Test({len(large_test):,})")
         
         # 3. Shuffle combined datasets
         import random
@@ -231,7 +228,7 @@ class CRFModelTrainer:
         if train_size and len(all_train_pairs) > train_size:
             all_train_pairs = all_train_pairs[:train_size]
         
-        print(f"🎯 FINAL COMBINED DATASET: Train({len(all_train_pairs):,}), Dev({len(all_dev_pairs):,}), Test({len(all_test_pairs):,})")
+        print(f"Final COMBINED DATASET: Train({len(all_train_pairs):,}), Dev({len(all_dev_pairs):,}), Test({len(all_test_pairs):,})")
         
         return all_train_pairs, all_dev_pairs, all_test_pairs
     
@@ -247,15 +244,15 @@ class CRFModelTrainer:
         Returns:
             Initialized CRF model
         """
-        print("🔧 Building CRF model with enhanced features...")
+        print("Building CRF model with enhanced features...")
         
         # Build dictionary from training data if requested
         dictionary = None
         if use_dictionary:
-            print("📚 Building word dictionary from training data...")
+            print("Building word dictionary from training data...")
             corpus_lines = [y_gold for _, y_gold in train_set]
             dictionary = build_dictionary_from_corpus(corpus_lines)
-            print(f"✅ Built dictionary with {len(dictionary)} unique words")
+            print(f"Built dictionary with {len(dictionary)} unique words")
         
         # Initialize CRF model with dictionary features
         model = CRFSegmenter(dictionary=dictionary)
@@ -276,31 +273,31 @@ class CRFModelTrainer:
         Returns:
             Trained CRF model
         """
-        print("🚀 Starting CRF training...")
+        print("Starting CRF training...")
         
         # Prepare training data
-        print("📊 Extracting features from training data...")
+        print("Extracting features from training data...")
         X_features, Y_labels = model.prepare_training_data(train_set)
         
         if not X_features:
             raise ValueError("No valid training sequences generated!")
         
-        print(f"✅ Prepared {len(X_features)} training sequences")
+        print(f"Prepared {len(X_features)} training sequences")
         
         # Train model
-        print("🔥 Training CRF model...")
+        print("Training CRF model...")
         model.train(X_features, Y_labels)
         
         # Evaluate on development set if provided
         if dev_set:
-            print("📈 Evaluating on development set...")
+            print("Evaluating on development set...")
             dev_f1 = self.evaluate_model(model, dev_set)
             self.training_history.append({
                 'dev_f1': dev_f1,
                 'train_size': len(train_set),
                 'dev_size': len(dev_set)
             })
-            print(f"📊 Development F1-score: {dev_f1:.4f}")
+            print(f"Development F1-score: {dev_f1:.4f}")
             
             self.best_f1 = dev_f1
         
@@ -324,7 +321,7 @@ class CRFModelTrainer:
         y_true_all = []
         y_pred_all = []
         
-        print("🔍 Evaluating model performance...")
+        print("Evaluating model performance...")
         
         # Adaptive evaluation sample size based on dataset size
         if len(test_set) > 10000:
@@ -334,7 +331,7 @@ class CRFModelTrainer:
         else:
             eval_samples = min(100, len(test_set))
         
-        print(f"📊 Evaluating on {eval_samples} samples from {len(test_set)} total test samples")
+        print(f"Evaluating on {eval_samples} samples from {len(test_set)} total test samples")
         
         for x_raw, y_gold in tqdm(test_set[:eval_samples], desc="Evaluating"):
             try:
@@ -369,7 +366,7 @@ class CRFModelTrainer:
             model_path: Path to save model
             metadata: Additional metadata to save
         """
-        print(f"💾 Saving CRF model to {model_path}...")
+        print(f"Saving CRF model to {model_path}...")
         
         # Create directory if needed
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
@@ -382,9 +379,9 @@ class CRFModelTrainer:
             metadata_path = model_path.replace('.pkl', '_metadata.json')
             with open(metadata_path, 'w', encoding='utf-8') as f:
                 json.dump(metadata, f, ensure_ascii=False, indent=2)
-            print(f"📋 Saved metadata to {metadata_path}")
+            print(f"Saved metadata to {metadata_path}")
         
-        print("✅ Model saved successfully!")
+        print("Model saved successfully!")
     
     def run_training_pipeline(self, corpus_path: str = None, 
                              train_size: int = None,
@@ -406,13 +403,13 @@ class CRFModelTrainer:
         Returns:
             Tuple of (trained_model, test_f1_score)
         """
-        print("🚀 Starting CRF training pipeline for Vietnamese word segmentation")
+        print("Starting CRF training pipeline for Vietnamese word segmentation")
         if combine_all_datasets:
-            print("🎯 Using ALL DATASETS: Viet74K + corpus-full.txt")
+            print("Using ALL DATASETS: Viet74K + corpus-full.txt")
         elif use_large_corpus:
-            print("📈 Using LARGE CORPUS from corpus-full.txt processing")
+            print("Using LARGE CORPUS from corpus-full.txt processing")
         else:
-            print("📚 Using Viet74K corpus")
+            print("Using Viet74K corpus")
         print("=" * 70)
         
         # Step 1: Prepare data
@@ -430,9 +427,9 @@ class CRFModelTrainer:
         self.model = self.train_crf(self.model, train_set, dev_set)
         
         # Step 4: Final evaluation
-        print("📊 Final evaluation on test set...")
+        print("Final evaluation on test set...")
         test_f1 = self.evaluate_model(self.model, test_set)
-        print(f"🎯 Final Test F1-score: {test_f1:.4f}")
+        print(f"Final Test F1-score: {test_f1:.4f}")
         
         # Step 5: Save model and metadata
         os.makedirs(model_output_dir, exist_ok=True)
@@ -460,10 +457,10 @@ class CRFModelTrainer:
         
         self.save_model(self.model, model_path, metadata)
         
-        print("🎉 CRF training pipeline completed successfully!")
-        print(f"📈 Model performance: F1 = {test_f1:.4f}")
-        print(f"💾 Model saved to: {model_path}")
-        print(f"📊 Training data: {metadata['data_source']} ({len(train_set):,} samples)")
+        print("CRF training pipeline completed successfully!")
+        print(f"Model performance: F1 = {test_f1:.4f}")
+        print(f"Model saved to: {model_path}")
+        print(f"Training data: {metadata['data_source']} ({len(train_set):,} samples)")
         
         return self.model, test_f1
 
@@ -490,7 +487,7 @@ class StructureAwareTrainer(CRFModelTrainer):
         Returns:
             Dictionary of structure patterns
         """
-        print("🔍 Analyzing Vietnamese linguistic structures...")
+        print("Analyzing Vietnamese linguistic structures...")
         
         patterns = {
             'syllable_patterns': defaultdict(int),
@@ -532,8 +529,8 @@ class StructureAwareTrainer(CRFModelTrainer):
                     if len(word_clean) >= 4:
                         patterns['compound_patterns'][word_clean] += 1
         
-        print(f"📊 Extracted {len(patterns['syllable_patterns'])} syllable patterns")
-        print(f"📊 Extracted {len(patterns['character_transitions'])} character transitions")
+        print(f"Extracted {len(patterns['syllable_patterns'])} syllable patterns")
+        print(f"Extracted {len(patterns['character_transitions'])} character transitions")
         
         return patterns
     
@@ -571,7 +568,7 @@ class StructureAwareTrainer(CRFModelTrainer):
         Returns:
             Enhanced model with structure features
         """
-        print("🔧 Enhancing model with structure features...")
+        print("Enhancing model with structure features...")
         
         # Create enhanced feature extractor
         enhanced_extractor = StructureAwareFeatureExtractor(
@@ -594,7 +591,7 @@ class StructureAwareTrainer(CRFModelTrainer):
         Returns:
             Balanced training data
         """
-        print("⚖️ Balancing training data to reduce common word bias...")
+        print("Balancing training data to reduce common word bias...")
         
         # Count word frequencies
         word_counts = defaultdict(int)
@@ -610,7 +607,7 @@ class StructureAwareTrainer(CRFModelTrainer):
         common_threshold = len(sorted_words) // 10
         common_words = set(word for word, _ in sorted_words[:common_threshold])
         
-        print(f"📊 Identified {len(common_words)} common words")
+        print(f"Identified {len(common_words)} common words")
         
         # Categorize samples
         common_samples = []
@@ -637,9 +634,9 @@ class StructureAwareTrainer(CRFModelTrainer):
             else:
                 mixed_samples.append(sample)
         
-        print(f"📊 Common-only samples: {len(common_samples)}")
-        print(f"📊 Rare-only samples: {len(rare_samples)}")
-        print(f"📊 Mixed samples: {len(mixed_samples)}")
+        print(f"Common-only samples: {len(common_samples)}")
+        print(f"Rare-only samples: {len(rare_samples)}")
+        print(f"Mixed samples: {len(mixed_samples)}")
         
         # Balance the dataset
         target_common_count = int(len(training_data) * max_common_word_ratio)
@@ -653,7 +650,7 @@ class StructureAwareTrainer(CRFModelTrainer):
         random.shuffle(common_samples)
         balanced_data.extend(common_samples[:target_common_count])
         
-        print(f"⚖️ Balanced dataset: {len(balanced_data)} samples")
+        print(f"Balanced dataset: {len(balanced_data)} samples")
         return balanced_data
     
     def run_structure_aware_training(self, corpus_path: str = None,
@@ -675,16 +672,16 @@ class StructureAwareTrainer(CRFModelTrainer):
         Returns:
             Tuple of (trained_model, test_f1_score)
         """
-        print("🧠 STRUCTURE-AWARE TRAINING PIPELINE")
+        print("STRUCTURE-AWARE TRAINING PIPELINE")
         print("=" * 60)
         sys.stdout.flush()
         
         # Load training data
         if use_chunked_corpus:
-            print("📁 Loading from chunked corpus...")
+            print("Loading from chunked corpus...")
             training_data = self._load_from_chunks(chunks_dir, train_size)
         else:
-            print("📁 Loading from single corpus...")
+            print("Loading from single corpus...")
             # Use parent class method to prepare data
             train_set, dev_set, test_set = self.prepare_data(
                 corpus_path=corpus_path,
@@ -697,16 +694,16 @@ class StructureAwareTrainer(CRFModelTrainer):
         if not training_data:
             raise ValueError("No training data loaded!")
         
-        print(f"📊 Loaded {len(training_data)} samples")
+        print(f"Loaded {len(training_data)} samples")
         sys.stdout.flush()
         
         # Extract structure patterns
-        print(f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bắt đầu extract patterns...")
+        print(f"{datetime.now().strftime('%H:%M:%S')} - Bắt đầu extract patterns...")
         sys.stdout.flush()
         structure_patterns = self.extract_structure_patterns(training_data)
         
         # Balance training data
-        print(f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bắt đầu balance data...")
+        print(f"{datetime.now().strftime('%H:%M:%S')} - Bắt đầu balance data...")
         sys.stdout.flush()
         balanced_data = self.balance_training_data(training_data)
         
@@ -727,18 +724,18 @@ class StructureAwareTrainer(CRFModelTrainer):
         model = self.create_structure_enhanced_features(model, structure_patterns)
         
         # Train model
-        print(f"\n🏋️ Training structure-aware model...")
-        print(f"⏰ {datetime.now().strftime('%H:%M:%S')} - Chuẩn bị dữ liệu training...")
+        print(f"\nTraining structure-aware model...")
+        print(f"{datetime.now().strftime('%H:%M:%S')} - Chuẩn bị dữ liệu training...")
         sys.stdout.flush()
         X_train, y_train = model.prepare_training_data(train_set)
         
-        print(f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bắt đầu train CRF model...")
-        print(f"📊 Training sequences: {len(X_train):,}")
+        print(f"{datetime.now().strftime('%H:%M:%S')} - Bắt đầu train CRF model...")
+        print(f"Training sequences: {len(X_train):,}")
         sys.stdout.flush()
         model.train(X_train, y_train)
         
         # Evaluate
-        print(f"⏰ {datetime.now().strftime('%H:%M:%S')} - Bắt đầu evaluation...")
+        print(f"{datetime.now().strftime('%H:%M:%S')} - Bắt đầu evaluation...")
         sys.stdout.flush()
         test_f1 = self.evaluate_model(model, test_set)
         
@@ -760,14 +757,14 @@ class StructureAwareTrainer(CRFModelTrainer):
         with open(metadata_path, 'w', encoding='utf-8') as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
         
-        print(f"\n✅ Structure-aware model saved to {model_path}")
-        print(f"📊 Test F1-score: {test_f1:.4f}")
+        print(f"\nModel saved to {model_path}")
+        print(f"Test F1-score: {test_f1:.4f}")
         
         return model, test_f1
     
     def _load_from_chunks(self, chunks_dir: str, max_samples: int) -> List[Tuple[str, str]]:
         """Load training data from processed chunks."""
-        print(f"📂 Loading from chunks in {chunks_dir}")
+        print(f"Loading from chunks in {chunks_dir}")
         
         chunk_files = []
         for filename in os.listdir(chunks_dir):
@@ -775,7 +772,7 @@ class StructureAwareTrainer(CRFModelTrainer):
                 chunk_files.append(os.path.join(chunks_dir, filename))
         
         chunk_files.sort()
-        print(f"📁 Found {len(chunk_files)} processed chunks")
+        print(f"Found {len(chunk_files)} processed chunks")
         
         all_data = []
         for chunk_file in chunk_files:

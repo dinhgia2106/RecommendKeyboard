@@ -71,7 +71,7 @@ class CRFInference:
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
         
-        print(f"🔄 Loading CRF model from {self.model_path}...")
+        print(f"Loading CRF model from {self.model_path}...")
         
         # Load model
         self.model = CRFSegmenter()
@@ -82,9 +82,9 @@ class CRFInference:
         if os.path.exists(metadata_path):
             with open(metadata_path, 'r', encoding='utf-8') as f:
                 self.metadata = json.load(f)
-                print(f"📋 Loaded model metadata: F1={self.metadata.get('test_f1', 'N/A'):.4f}")
+                print(f"Loaded model metadata: F1={self.metadata.get('test_f1', 'N/A'):.4f}")
         
-        print("✅ CRF model loaded successfully!")
+        print("CRF model loaded successfully!")
     
     def preprocess_text(self, text: str) -> str:
         """
@@ -220,7 +220,7 @@ class CRFInference:
         results = []
         total_start_time = time.time()
         
-        print(f"🔄 Processing {len(texts)} texts...")
+        print(f"Processing {len(texts)} texts...")
         
         for i, text in enumerate(texts):
             try:
@@ -230,15 +230,15 @@ class CRFInference:
                 if (i + 1) % 100 == 0:
                     elapsed = time.time() - total_start_time
                     avg_time = elapsed / (i + 1)
-                    print(f"📊 Processed {i+1}/{len(texts)} texts (avg: {avg_time:.4f}s/text)")
+                    print(f"Processed {i+1}/{len(texts)} texts (avg: {avg_time:.4f}s/text)")
                     
             except Exception as e:
-                print(f"❌ Error processing text {i}: {e}")
+                print(f"Error processing text {i}: {e}")
                 # Add empty result for failed processing
                 results.append(SegmentationResult(text, "", 0.0))
         
         total_time = time.time() - total_start_time
-        print(f"✅ Batch processing completed in {total_time:.2f}s")
+        print(f"Batch processing completed in {total_time:.2f}s")
         
         return results
     
@@ -281,7 +281,7 @@ class CRFInference:
             "toisethamsinhvienvietnam"
         ]
         
-        print("🎯 Running demo examples...")
+        print("Running demo examples...")
         results = []
         
         for text in demo_texts:
@@ -335,7 +335,7 @@ class PerformanceMonitor:
     
     def print_stats(self):
         """Print formatted performance statistics."""
-        print("\n📊 PERFORMANCE STATISTICS")
+        print("\nPERFORMANCE STATISTICS")
         print("=" * 40)
         print(f"Total texts processed: {self.stats['total_processed']}")
         print(f"Total processing time: {self.stats['total_time']:.2f}s")
@@ -368,14 +368,14 @@ def main():
         
         # Show model info
         model_info = inference.get_model_info()
-        print("\n📋 Model Information:")
+        print("\nModel Information:")
         print(f"   Model Type: {model_info['model_type']}")
         print(f"   Dictionary Size: {model_info.get('feature_info', {}).get('dictionary_size', 'N/A')}")
         if model_info['metadata']:
             print(f"   Test F1-score: {model_info['metadata'].get('test_f1', 'N/A'):.4f}")
         
         # Run demo examples
-        print("\n🎯 Demo Examples:")
+        print("\nDemo Examples:")
         print("-" * 30)
         demo_results = inference.demo_examples()
         
@@ -385,7 +385,7 @@ def main():
         monitor.print_stats()
         
         # Interactive mode
-        print("\n🔧 Interactive Mode (type 'quit' to exit):")
+        print("\nInteractive Mode (type 'quit' to exit):")
         print("💡 Use 'multi:<text>' for multiple suggestions")
         print("-" * 40)
         
@@ -404,7 +404,7 @@ def main():
                     text_to_segment = user_input[6:].strip()
                     if text_to_segment:
                         result = inference.segment_multiple(text_to_segment, n_suggestions=5)
-                        print(f"📍 Multiple suggestions for '{result.input_text}':")
+                        print(f"Multiple suggestions for '{result.input_text}':")
                         for i, (candidate, confidence) in enumerate(result.candidates, 1):
                             print(f"   {i}. '{candidate}' (confidence: {confidence:.3f})")
                         print(f"Processing time: {result.processing_time:.4f}s")

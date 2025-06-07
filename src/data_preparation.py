@@ -338,92 +338,70 @@ class VietnameseDataPreprocessor:
     def process_corpus_chunks_parallel(self, chunks_dir: str, output_dir: str, 
                                      max_samples_per_chunk: int = None):
         """
-        Xử lý các chunks song song để tạo training data.
-        
-        Args:
-            chunks_dir: Thư mục chứa các chunks
-            output_dir: Thư mục output cho processed data
-            max_samples_per_chunk: Giới hạn samples mỗi chunk
+        Xử lý song song các chunk corpus
         """
-        print(f"⚡ Xử lý chunks song song từ {chunks_dir}")
-        
-        # Tìm tất cả chunk files
-        chunk_files = []
-        for filename in os.listdir(chunks_dir):
-            if filename.endswith('.txt') and 'chunk' in filename:
-                chunk_files.append(os.path.join(chunks_dir, filename))
-        
-        chunk_files.sort()
-        print(f"📁 Tìm thấy {len(chunk_files)} chunks")
-        
-        # Tạo thư mục output
+        print(f"Bắt đầu xử lý song song các chunk từ {chunks_dir}")
         os.makedirs(output_dir, exist_ok=True)
         
-        # Xử lý từng chunk
-        processed_files = []
-        total_processed = 0
+        chunk_files = []
+        for file in os.listdir(chunks_dir):
+            if file.startswith("corpus_chunk") and file.endswith(".txt"):
+                chunk_files.append(os.path.join(chunks_dir, file))
         
-        for i, chunk_file in enumerate(chunk_files):
-            print(f"\n🔄 Xử lý chunk {i+1}/{len(chunk_files)}: {os.path.basename(chunk_file)}")
+        print(f"Tìm thấy {len(chunk_files)} chunk để xử lý")
+        
+        processed_files = []
+        total_samples = 0
+        
+        for i, chunk_file in enumerate(chunk_files, 1):
+            chunk_name = os.path.basename(chunk_file)
+            output_file = os.path.join(output_dir, f"processed_{chunk_name}")
             
-            # Tên file output cho chunk này
-            chunk_name = os.path.splitext(os.path.basename(chunk_file))[0]
-            output_file = os.path.join(output_dir, f"{chunk_name}_processed.txt")
-            
-            # Xử lý chunk
-            processed_count = self.process_large_corpus_streaming(
-                chunk_file, output_file, max_samples_per_chunk
+            print(f"Xử lý chunk {i}/{len(chunk_files)}: {chunk_name}")
+            samples = self.process_large_corpus_streaming(
+                chunk_file, 
+                output_file,
+                max_samples=max_samples_per_chunk
             )
             
-            if processed_count > 0:
+            if samples > 0:
                 processed_files.append(output_file)
-                total_processed += processed_count
-                print(f"✅ Chunk {i+1} hoàn thành: {processed_count:,} samples")
-            else:
-                print(f"⚠️ Chunk {i+1} không có data")
+                total_samples += samples
         
-        print(f"\n🎉 Hoàn thành xử lý {len(processed_files)} chunks")
-        print(f"📊 Tổng cộng: {total_processed:,} training samples")
+        print(f"Hoàn thành xử lý {len(processed_files)} chunk")
+        print(f"Tổng số samples: {total_samples}")
         
         return processed_files
     
     def combine_processed_chunks(self, processed_files: List[str], 
                                output_file: str, shuffle: bool = True):
         """
-        Kết hợp các processed chunks thành một file training duy nhất.
-        
-        Args:
-            processed_files: List các file đã processed
-            output_file: File output
-            shuffle: Có shuffle data không
+        Gộp các chunk đã xử lý thành một file
         """
-        print(f"🔄 Kết hợp {len(processed_files)} chunks thành {output_file}")
+        print(f"Bắt đầu gộp {len(processed_files)} file đã xử lý")
         
+        # Đọc tất cả các dòng
         all_lines = []
+        total_samples = 0
         
-        # Đọc tất cả lines từ các chunks
-        for file_path in processed_files:
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    lines = [line.strip() for line in f if line.strip()]
-                    all_lines.extend(lines)
-                    print(f"📄 {os.path.basename(file_path)}: {len(lines):,} samples")
+        for file in processed_files:
+            with open(file, 'r', encoding='utf-8') as f:
+                file_lines = f.readlines()
+                all_lines.extend(file_lines)
+                total_samples += len(file_lines)
+                print(f"Đã đọc {len(file_lines)} dòng từ {os.path.basename(file)}")
         
-        print(f"📝 Tổng cộng: {len(all_lines):,} samples")
-        
-        # Shuffle nếu cần
+        # Xáo trộn nếu cần
         if shuffle:
-            print("🎲 Shuffling data...")
-            import random
+            print("Đang xáo trộn dữ liệu...")
             random.shuffle(all_lines)
         
-        # Ghi ra file cuối
+        # Ghi ra file kết quả
         with open(output_file, 'w', encoding='utf-8') as f:
-            for line in all_lines:
-                f.write(line + '\n')
+            f.writelines(all_lines)
         
-        print(f"✅ Đã kết hợp thành {output_file}")
-        return len(all_lines)
+        print(f"Đã gộp xong {total_samples} samples vào {output_file}")
+        return total_samples
     
     def smart_corpus_processing(self, large_corpus_file: str, 
                               output_base_dir: str = "data/processed_chunks",
@@ -431,59 +409,49 @@ class VietnameseDataPreprocessor:
                               max_samples_per_chunk: int = 50000,
                               final_output: str = None):
         """
-        Pipeline xử lý corpus lớn một cách thông minh.
-        
-        Args:
-            large_corpus_file: File corpus lớn gốc
-            output_base_dir: Thư mục base cho output
-            num_chunks: Số chunks muốn chia
-            max_samples_per_chunk: Max samples mỗi chunk
-            final_output: File output cuối (optional)
-        
-        Returns:
-            Path to final processed file
+        Xử lý thông minh corpus lớn:
+        1. Chia thành chunks nhỏ
+        2. Xử lý song song từng chunk
+        3. Gộp lại thành file cuối cùng
         """
-        print("🚀 BẮT ĐẦU SMART CORPUS PROCESSING")
-        print("=" * 60)
+        print("Bắt đầu xử lý thông minh corpus lớn")
+        print(f"File nguồn: {large_corpus_file}")
         
-        # Tạo các thư mục cần thiết
+        # Tạo thư mục output
         chunks_dir = os.path.join(output_base_dir, "raw_chunks")
         processed_dir = os.path.join(output_base_dir, "processed_chunks")
+        os.makedirs(chunks_dir, exist_ok=True)
+        os.makedirs(processed_dir, exist_ok=True)
         
-        # Bước 1: Chia corpus thành chunks
-        print("\n📋 BƯỚC 1: Chia corpus thành chunks")
-        chunk_files = self.split_corpus_into_chunks(
-            large_corpus_file, chunks_dir, num_chunks
+        # Bước 1: Chia chunks
+        print("\nBước 1: Chia file thành chunks nhỏ")
+        self.split_corpus_into_chunks(
+            large_corpus_file,
+            chunks_dir,
+            num_chunks=num_chunks
         )
         
-        # Bước 2: Xử lý các chunks
-        print("\n🔧 BƯỚC 2: Xử lý các chunks")
+        # Bước 2: Xử lý song song
+        print("\nBước 2: Xử lý từng chunk")
         processed_files = self.process_corpus_chunks_parallel(
-            chunks_dir, processed_dir, max_samples_per_chunk
+            chunks_dir,
+            processed_dir,
+            max_samples_per_chunk=max_samples_per_chunk
         )
         
-        # Bước 3: Kết hợp nếu cần
+        # Bước 3: Gộp kết quả
         if final_output:
-            print("\n🔗 BƯỚC 3: Kết hợp chunks")
+            print("\nBước 3: Gộp kết quả cuối cùng")
             total_samples = self.combine_processed_chunks(
-                processed_files, final_output
+                processed_files,
+                final_output,
+                shuffle=True
             )
-            result_file = final_output
+            print(f"Hoàn thành! Tổng số samples: {total_samples}")
         else:
-            # Giữ nguyên các chunks riêng lẻ
-            total_samples = sum(
-                len(open(f, 'r', encoding='utf-8').readlines()) 
-                for f in processed_files if os.path.exists(f)
-            )
-            result_file = processed_dir
+            print("\nBỏ qua bước gộp kết quả theo yêu cầu")
         
-        print("\n" + "=" * 60)
-        print("🎊 HOÀN THÀNH SMART CORPUS PROCESSING")
-        print(f"📊 Tổng samples: {total_samples:,}")
-        print(f"📁 Kết quả: {result_file}")
-        print("=" * 60)
-        
-        return result_file
+        return processed_files
 
 def process_full_corpus():
     """

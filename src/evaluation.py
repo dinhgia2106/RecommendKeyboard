@@ -106,7 +106,7 @@ class CRFEvaluator:
         if max_samples:
             test_data = test_data[:max_samples]
         
-        print(f"🔍 Evaluating CRF model on {len(test_data)} samples...")
+        print(f"Evaluating CRF model on {len(test_data)} samples...")
         
         # Collect predictions and ground truth
         y_true_labels = []

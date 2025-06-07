@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-🇻🇳 VIETNAMESE WORD SEGMENTATION DEMO
+VIETNAMESE WORD SEGMENTATION DEMO
 =====================================
 
 Dự án tách từ tiếng Việt tự động - Demo showcasing tất cả tính năng
@@ -21,17 +21,17 @@ from src.inference import CRFInference
 def print_header(title):
     """In header đẹp cho demo"""
     print("\n" + "="*60)
-    print(f"🇻🇳 {title}")
+    print(f"{title}")
     print("="*60)
 
 def print_section(title):
     """In section header"""
-    print(f"\n📍 {title}")
+    print(f"\n{title}")
     print("-"*50)
 
 def interactive_demo():
     """Run interactive demo for Vietnamese word segmentation."""
-    print("🇻🇳 Vietnamese Word Segmentation - Enhanced Interactive Demo")
+    print("Vietnamese Word Segmentation - Enhanced Interactive Demo")
     print("=" * 70)
     print("Enter Vietnamese text without spaces and diacritics")
     print("Examples: xinchao, sonha, toilasinhhvien, moibandenquannuocvietnam")
@@ -68,14 +68,14 @@ def interactive_demo():
                 break
     
     if not model_path:
-        print("❌ No trained model found!")
-        print("🏋️ Train a model first:")
+        print("No trained model found!")
+        print("Train a model first:")
         print("   python train_large_corpus.py --structure-aware")
         print("   python train_large_corpus.py")
         return
     
     try:
-        print(f"🔄 Loading model from {model_path}...")
+        print(f"Loading model from {model_path}...")
         
         if is_enhanced:
             # Load enhanced model with Vietnamese dictionary
@@ -88,15 +88,15 @@ def interactive_demo():
             model = ContextAwareCRFSegmenter(vietnamese_dict=vietnamese_dict)
             model.load(model_path)
             
-            print(f"✅ Enhanced model loaded with {len(vietnamese_dict):,} dictionary words!")
-            print("🧠 Features: Context-aware suggestions, meaningfulness scoring")
+            print(f"Enhanced model loaded with {len(vietnamese_dict):,} dictionary words!")
+            print("Features: Context-aware suggestions, meaningfulness scoring")
         else:
             # Load basic model
             inference = CRFInference(model_path)
             model = None
             
             model_info = inference.get_model_info()
-            print(f"✅ Basic model loaded!")
+            print(f"Basic model loaded!")
             print(f"   Model Type: {model_info['model_type']}")
             if model_info['metadata']:
                 print(f"   F1-Score: {model_info['metadata'].get('test_f1', 'N/A'):.4f}")
@@ -107,11 +107,11 @@ def interactive_demo():
         while True:
             try:
                 # Get user input
-                user_input = input("🔤 Enter text (or 'multi' for suggestions): ").strip()
+                user_input = input("Enter text (or 'multi' for suggestions): ").strip()
                 
                 # Check for exit commands
                 if user_input.lower() in ['quit', 'exit', 'q']:
-                    print("👋 Goodbye!")
+                    print("Goodbye!")
                     break
                 
                 if not user_input:
@@ -121,81 +121,81 @@ def interactive_demo():
                 # Check for multiple suggestions command
                 if user_input.lower() == 'multi':
                     if not is_enhanced:
-                        print("❌ Multiple suggestions require enhanced model")
-                        print("🏋️ Train with: python train_large_corpus.py --structure-aware")
+                        print("Multiple suggestions require enhanced model")
+                        print("Train with: python train_large_corpus.py --structure-aware")
                         continue
                     
-                    multi_input = input("🔤 Enter text for multiple suggestions: ").strip()
+                    multi_input = input("Enter text for multiple suggestions: ").strip()
                     if not multi_input:
                         continue
                     
-                    print(f"⏳ Generating suggestions for: '{multi_input}'...")
+                    print(f"Generating suggestions for: '{multi_input}'...")
                     
                     if hasattr(model, 'segment_with_context'):
                         suggestions = model.segment_with_context(multi_input, n_best=5)
                         
-                        print("🎯 Suggestions (ranked by meaningfulness):")
+                        print("Suggestions (ranked by meaningfulness):")
                         for i, (suggestion, score) in enumerate(suggestions, 1):
                             if score >= 0.8:
-                                status = "🟢 High"
+                                status = "High"
                             elif score >= 0.6:
-                                status = "🟡 Medium"
+                                status = "Medium"
                             else:
-                                status = "🔴 Low"
+                                status = "Low"
                             
                             print(f"  {i}. {status}: '{suggestion}' ({score:.3f})")
                     else:
                         result = model.segment(multi_input)
-                        print(f"✅ Result: '{result}'")
+                        print(f"Result: '{result}'")
                     
                     print()
                     continue
                 
                 # Process regular input
-                print(f"⏳ Processing: '{user_input}'...")
+                print(f"Processing: '{user_input}'...")
                 
                 if is_enhanced and model:
                     # Use enhanced model
                     if hasattr(model, 'segment_smart'):
                         result = model.segment_smart(user_input)
-                        print(f"✅ Smart Result: '{result}'")
+                        print(f"Smart Result: '{result}'")
                     else:
                         result = model.segment(user_input)
-                        print(f"✅ Result: '{result}'")
+                        print(f"Result: '{result}'")
                     
                     # Show top suggestion with score if available
                     if hasattr(model, 'segment_with_context'):
                         suggestions = model.segment_with_context(user_input, n_best=1)
                         if suggestions:
                             _, score = suggestions[0]
-                            print(f"📊 Confidence: {score:.3f}")
+                            print(f"Confidence: {score:.3f}")
                 else:
                     # Use basic model
                     result = inference.segment(user_input)
-                    print(f"📤 Input:  '{result.input_text}'")
-                    print(f"📥 Output: '{result.segmented_text}'")
-                    print(f"⏱️  Time:   {result.processing_time:.4f} seconds")
+                    print(f"Input:  '{result.input_text}'")
+                    print(f"Output: '{result.segmented_text}'")
+                    print(f"Time:   {result.processing_time:.4f} seconds")
                 
                 print()
                 
             except KeyboardInterrupt:
-                print("\n👋 Goodbye!")
+                print("\nGoodbye!")
                 break
             except Exception as e:
-                print(f"❌ Error: {e}")
+                print(f"Error: {e}")
                 print()
                 
     except Exception as e:
-        print(f"❌ Failed to initialize demo: {e}")
+        print(f"Failed to initialize demo: {e}")
 
 def batch_demo():
     """Demonstrate batch processing capabilities."""
-    print("\n🔄 Batch Processing Demo")
+    print("\nBatch Processing Demo")
     print("-" * 40)
     
     model_path = "models/crf/best_model.pkl"
     if not os.path.exists(model_path):
-        print("❌ Model not found for batch demo")
+        print("Model not found for batch demo")
         return
     
     try:
@@ -225,16 +225,16 @@ def batch_demo():
             print(f"{i:2}. '{result.input_text}' → '{result.segmented_text}'")
         
     except Exception as e:
-        print(f"❌ Batch demo failed: {e}")
+        print(f"Batch demo failed: {e}")
 
 def examples_demo():
     """Show various examples of word segmentation."""
-    print("\n🎯 Example Demonstrations")
+    print("\nExample Demonstrations")
     print("-" * 35)
     
     model_path = "models/crf/best_model.pkl"
     if not os.path.exists(model_path):
-        print("❌ Model not found for examples demo")
+        print("Model not found for examples demo")
         return
     
     try:
@@ -273,16 +273,16 @@ def examples_demo():
                 print(f"  '{result.input_text}' → '{result.segmented_text}'")
         
     except Exception as e:
-        print(f"❌ Examples demo failed: {e}")
+        print(f"Examples demo failed: {e}")
 
 def performance_demo():
     """Demonstrate model performance characteristics."""
-    print("\n📊 Performance Demonstration")
+    print("\nPerformance Demonstration")
     print("-" * 35)
     
     model_path = "models/crf/best_model.pkl"
     if not os.path.exists(model_path):
-        print("❌ Model not found for performance demo")
+        print("Model not found for performance demo")
         return
     
     try:
@@ -314,11 +314,11 @@ def performance_demo():
             print()
     
     except Exception as e:
-        print(f"❌ Performance demo failed: {e}")
+        print(f"Performance demo failed: {e}")
 
 def main():
     """Main demo function with menu."""
-    print("🇻🇳 Vietnamese Word Segmentation - CRF Demo")
+    print("Vietnamese Word Segmentation - CRF Demo")
     print("=" * 70)
     print("This demo showcases the CRF-based Vietnamese word segmentation system.")
     print()
@@ -344,20 +344,20 @@ def main():
             elif choice == '4':
                 performance_demo()
             elif choice == '5':
-                print("👋 Thank you for using the Vietnamese Word Segmentation demo!")
+                print("Thank you for using the Vietnamese Word Segmentation demo!")
                 break
             else:
-                print("❌ Invalid choice. Please enter 1-5.")
+                print("Invalid choice. Please enter 1-5.")
                 
             if choice in ['1', '2', '3', '4']:
                 input("\nPress Enter to return to menu...")
                 print("\n" + "="*70)
                 
         except KeyboardInterrupt:
-            print("\n👋 Goodbye!")
+            print("\nGoodbye!")
             break
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error: {e}")
 
 if __name__ == "__main__":
     main() 

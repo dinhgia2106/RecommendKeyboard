@@ -2,7 +2,7 @@
 
 An end-to-end, production-ready Conditional Random Fields (CRF) solution for Vietnamese word segmentation. This project transforms unsegmented, non-diacritic Vietnamese text into correctly segmented words, complete with a modular architecture for training, evaluation, and deployment via a REST API and an interactive web demo.
 
-## 🌟 Key Features
+## Key Features
 
 - **High-Performance CRF Model**: Achieves over 97% F1-score on a large-scale Vietnamese corpus.
 - **Advanced Feature Engineering**: Combines character-level n-grams, positional attributes, and dictionary-based features for high accuracy.
@@ -13,7 +13,7 @@ An end-to-end, production-ready Conditional Random Fields (CRF) solution for Vie
   - **Gradio Web Interface**: For interactive demos and real-time testing.
 - **Scalable Data Handling**: Supports streaming for processing very large corpora that don't fit into memory.
 
-## 🎯 Problem Statement
+## Problem Statement
 
 The core task is to solve a specific challenge in Vietnamese NLP: identifying word boundaries in a continuous string of text that lacks both spaces and diacritics.
 
@@ -22,7 +22,7 @@ The core task is to solve a specific challenge in Vietnamese NLP: identifying wo
 
 This capability is crucial for processing user-generated content, legacy data, or text from systems where proper formatting and diacritics were lost.
 
-## ⚙️ System Architecture
+## System Architecture
 
 The project is designed with a modular and decoupled architecture, ensuring that each component can be understood, tested, and improved independently.
 
@@ -61,7 +61,7 @@ graph TD;
 
 ---
 
-## 🔧 Technical Deep Dive
+## Technical Deep Dive
 
 ### 1. Data Preparation (`data_preparation.py`)
 
@@ -138,7 +138,7 @@ The `deployment.py` script exposes this functionality through two interfaces:
 - **Gradio Web Demo**: A user-friendly interface for interactive, real-time segmentation.
 - **FastAPI REST API**: Provides production-ready endpoints for integration into other services.
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 vietnamese-word-segmentation/
@@ -163,7 +163,7 @@ vietnamese-word-segmentation/
 └── README.md
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -219,7 +219,7 @@ The API will be available at `http://localhost:8000`. See the docs at `http://lo
 - `POST /batch_segment`: Segments a list of texts.
 - `GET /model_info`: Returns metadata about the loaded model.
 
-## 🔬 Advanced Usage
+## Advanced Usage
 
 The modules are designed for easy extension and custom use.
 
@@ -284,12 +284,12 @@ print(f"F1-Score on custom data: {metrics.f1_score:.4f}")
 print(f"Sentence Accuracy: {metrics.sentence_accuracy:.4f}")
 ```
 
-## 🔮 Future Enhancements
+## Future Enhancements
 
 - **Hybrid Models**: Integrate this CRF model with a neural network (e.g., BiLSTM-CRF) to potentially capture deeper semantic dependencies.
 - **Domain Adaptation**: Fine-tune the model on domain-specific corpora (e.g., legal documents, social media posts) to improve accuracy in specialized contexts.
 - **Active Learning**: Implement an active learning loop where the model can query for labels on uncertain predictions, reducing manual annotation effort.
 
-## 🤝 Contributing
+## Contributing
 
 Contributions, issues, and feature requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
