@@ -20,6 +20,7 @@ from typing import List, Tuple, Dict, Set
 from collections import defaultdict, Counter
 import sklearn_crfsuite
 from sklearn_crfsuite import metrics
+import os
 
 
 class CRFFeatureExtractor:
@@ -521,6 +522,200 @@ class CRFSegmenter:
             self.is_trained = data['is_trained']
 
 
+class ContextAwareCRFSegmenter(CRFSegmenter):
+    """
+    Enhanced CRF segmenter with context-aware suggestions and meaningful predictions.
+    
+    This class extends the basic CRF segmenter with:
+    - Context-aware multiple suggestions
+    - Dictionary-based validation for meaningful words
+    - Punctuation and capitalization preservation
+    - Linguistic structure understanding
+    """
+    
+    def __init__(self, dictionary: Set[str] = None, vietnamese_dict: Set[str] = None):
+        """
+        Initialize context-aware CRF segmenter.
+        
+        Args:
+            dictionary: Basic dictionary for features
+            vietnamese_dict: Vietnamese vocabulary for validation
+        """
+        super().__init__(dictionary)
+        self.vietnamese_dict = vietnamese_dict or set()
+        self.punctuation_map = {
+            ',': ',', '.': '.', '?': '?', '!': '!', 
+            ':': ':', ';': ';', '-': '-', '(': '(', ')': ')'
+        }
+        
+    def load_vietnamese_dictionary(self, dict_path: str = None):
+        """Load Vietnamese dictionary for validation."""
+        if dict_path and os.path.exists(dict_path):
+            with open(dict_path, 'r', encoding='utf-8') as f:
+                self.vietnamese_dict = set(line.strip().lower() for line in f)
+        else:
+            # Build from training data if no external dict
+            print("📚 Building Vietnamese dictionary from training data...")
+            
+    def extract_punctuation_and_case(self, text: str) -> Dict:
+        """
+        Extract punctuation positions and capitalization info.
+        
+        Args:
+            text: Input text with possible punctuation and mixed case
+            
+        Returns:
+            Dictionary with punctuation and case information
+        """
+        info = {
+            'punctuation': {},  # position -> punctuation char
+            'capitals': set(),  # positions of capital letters
+            'sentence_starts': []  # positions where sentences start
+        }
+        
+        for i, char in enumerate(text):
+            if char.isupper():
+                info['capitals'].add(i)
+            if char in self.punctuation_map:
+                info['punctuation'][i] = char
+            # Detect sentence start (after . ! ? or beginning)
+            if i == 0 or (i > 0 and text[i-1] in '.!?'):
+                info['sentence_starts'].append(i)
+                
+        return info
+        
+    def restore_punctuation_and_case(self, segmented: str, original_info: Dict) -> str:
+        """
+        Restore punctuation and capitalization to segmented text.
+        
+        Args:
+            segmented: Segmented text without punctuation/case
+            original_info: Information extracted from original text
+            
+        Returns:
+            Text with restored punctuation and capitalization
+        """
+        result = list(segmented)
+        char_mapping = []  # Track original position for each result char
+        
+        # Build mapping from result position to original position
+        result_pos = 0
+        for orig_pos, char in enumerate(segmented.replace(' ', '')):
+            if result_pos < len(result) and result[result_pos] == char:
+                char_mapping.append(orig_pos)
+                result_pos += 1
+        
+        # Apply capitalization
+        for orig_pos in original_info['capitals']:
+            if orig_pos < len(char_mapping):
+                result_pos = char_mapping.index(orig_pos) if orig_pos in char_mapping else -1
+                if result_pos >= 0 and result_pos < len(result):
+                    result[result_pos] = result[result_pos].upper()
+        
+        # Apply sentence capitalization
+        words = segmented.split()
+        if words:
+            # Capitalize first word
+            words[0] = words[0].capitalize()
+            
+        # Insert punctuation (simplified approach)
+        for pos, punct in original_info['punctuation'].items():
+            # Insert at appropriate word boundaries
+            if punct in ',.!?:;':
+                segmented += punct  # Simplified - append at end
+        
+        return ' '.join(words) + ''.join(original_info['punctuation'].values())
+        
+    def calculate_meaningfulness_score(self, words: List[str]) -> float:
+        """
+        Calculate how meaningful a segmentation is based on dictionary matches.
+        
+        Args:
+            words: List of segmented words
+            
+        Returns:
+            Score between 0 and 1 (higher = more meaningful)
+        """
+        if not words:
+            return 0.0
+            
+        meaningful_words = 0
+        total_words = len(words)
+        
+        for word in words:
+            word_clean = word.lower().strip()
+            # Check in dictionary
+            if word_clean in self.vietnamese_dict:
+                meaningful_words += 1
+            # Prefer longer meaningful words
+            elif len(word_clean) >= 3:
+                # Partial credit for longer words (might be compound words)
+                meaningful_words += 0.5
+            elif len(word_clean) == 1:
+                # Single characters get some credit (pronouns, particles)
+                meaningful_words += 0.3
+                
+        return meaningful_words / total_words
+        
+    def segment_with_context(self, text: str, n_best: int = 5) -> List[Tuple[str, float]]:
+        """
+        Generate context-aware segmentations with meaningfulness scores.
+        
+        Args:
+            text: Input text
+            n_best: Number of suggestions to return
+            
+        Returns:
+            List of (segmented_text, score) sorted by meaningfulness
+        """
+        if not text:
+            return [("", 1.0)]
+            
+        # Extract original formatting info
+        original_info = self.extract_punctuation_and_case(text)
+        
+        # Clean text for segmentation
+        clean_text = re.sub(r'[^\w]', '', text.lower())
+        # Import here to avoid circular import
+        from .data_preparation import VietnameseDataPreprocessor
+        preprocessor = VietnameseDataPreprocessor()
+        clean_text = preprocessor.remove_diacritics(clean_text)
+        
+        # Get multiple predictions
+        multiple_predictions = self.segment_multiple(clean_text, n_best * 2)  # Get more to filter
+        
+        # Score and rank by meaningfulness
+        scored_results = []
+        for segmented, base_score in multiple_predictions:
+            words = segmented.split()
+            meaningfulness = self.calculate_meaningfulness_score(words)
+            
+            # Combined score: base CRF confidence + meaningfulness
+            combined_score = 0.4 * base_score + 0.6 * meaningfulness
+            
+            # Restore formatting
+            formatted = self.restore_punctuation_and_case(segmented, original_info)
+            
+            scored_results.append((formatted, combined_score))
+            
+        # Sort by combined score and return top n_best
+        scored_results.sort(key=lambda x: x[1], reverse=True)
+        return scored_results[:n_best]
+        
+    def segment_smart(self, text: str) -> str:
+        """
+        Smart segmentation that returns the most meaningful result.
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Best segmented text with restored formatting
+        """
+        results = self.segment_with_context(text, n_best=1)
+        return results[0][0] if results else text
+
+
 def create_char_vocab(corpus_lines: List[str]) -> Dict[str, int]:
     """
     Create character vocabulary from corpus.
@@ -568,4 +763,43 @@ def build_dictionary_from_corpus(corpus_lines: List[str]) -> Set[str]:
             if word_clean and len(word_clean) > 0:
                 dictionary.add(word_clean)
     
+    return dictionary
+
+
+def create_vietnamese_dictionary_from_data(data_files: List[str]) -> Set[str]:
+    """
+    Create Vietnamese dictionary from training data files.
+    
+    Args:
+        data_files: List of data file paths
+        
+    Returns:
+        Set of Vietnamese words
+    """
+    dictionary = set()
+    # Import here to avoid circular import
+    from .data_preparation import VietnameseDataPreprocessor
+    preprocessor = VietnameseDataPreprocessor()
+    
+    for file_path in data_files:
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if '\t' in line:
+                            _, y_gold = line.strip().split('\t', 1)
+                            # Extract words and add to dictionary
+                            words = y_gold.split()
+                            for word in words:
+                                # Clean and normalize word
+                                word_clean = re.sub(r'[^\w]', '', word.lower())
+                                if len(word_clean) >= 1:
+                                    dictionary.add(word_clean)
+                                    # Also add without diacritics
+                                    word_no_diacritic = preprocessor.remove_diacritics(word_clean)
+                                    dictionary.add(word_no_diacritic)
+            except Exception as e:
+                print(f"⚠️ Error reading {file_path}: {e}")
+                
+    print(f"📚 Created Vietnamese dictionary with {len(dictionary)} words")
     return dictionary 

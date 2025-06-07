@@ -17,3 +17,4 @@ gradio==3.44.4
 fastapi==0.103.1
 uvicorn==0.23.2
 python-multipart==0.0.6 
+sklearn-crfsuite==0.5.0

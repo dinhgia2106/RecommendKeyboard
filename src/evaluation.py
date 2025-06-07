@@ -129,9 +129,14 @@ class CRFEvaluator:
                 # Get model prediction
                 pred_segmented = model.segment(x_raw)
                 
-                # Character-level evaluation
-                y_gold_clean = re.sub(r'[^\w]', '', y_gold.lower())
-                pred_clean = re.sub(r'[^\w]', '', pred_segmented.lower())
+                # FIXED: Remove diacritics from both y_gold and prediction for fair comparison
+                # Since model only segments without diacritics, we need to normalize both sides
+                y_gold_normalized = self.preprocessor.remove_diacritics(y_gold.lower())
+                pred_normalized = self.preprocessor.remove_diacritics(pred_segmented.lower())
+                
+                # Character-level evaluation (use normalized versions)
+                y_gold_clean = re.sub(r'[^\w]', '', y_gold_normalized)
+                pred_clean = re.sub(r'[^\w]', '', pred_normalized)
                 
                 if len(y_gold_clean) == len(pred_clean):
                     for true_char, pred_char in zip(y_gold_clean, pred_clean):
@@ -139,15 +144,15 @@ class CRFEvaluator:
                             char_matches += 1
                         total_chars += 1
                 
-                # Word-level evaluation
-                true_words = y_gold.strip().split()
-                pred_words = pred_segmented.strip().split()
+                # Word-level evaluation (use normalized versions)
+                true_words = y_gold_normalized.strip().split()
+                pred_words = pred_normalized.strip().split()
                 
                 true_words_all.extend(true_words)
                 pred_words_all.extend(pred_words)
                 
-                # Sentence-level evaluation
-                if y_gold.strip() == pred_segmented.strip():
+                # Sentence-level evaluation (use normalized versions)
+                if y_gold_normalized.strip() == pred_normalized.strip():
                     exact_matches += 1
                 
                 # Word length analysis
@@ -230,11 +235,15 @@ class CRFEvaluator:
             try:
                 pred_segmented = model.segment(x_raw)
                 
-                true_words = y_gold.strip().split()
-                pred_words = pred_segmented.strip().split()
+                # FIXED: Normalize both y_gold and prediction for fair comparison
+                y_gold_normalized = self.preprocessor.remove_diacritics(y_gold.lower())
+                pred_normalized = self.preprocessor.remove_diacritics(pred_segmented.lower())
+                
+                true_words = y_gold_normalized.strip().split()
+                pred_words = pred_normalized.strip().split()
                 
                 # Classify error type
-                if y_gold.strip() == pred_segmented.strip():
+                if y_gold_normalized.strip() == pred_normalized.strip():
                     error_types['perfect_matches'] += 1
                 elif len(pred_words) > len(true_words):
                     error_types['over_segmentation'] += 1
@@ -244,15 +253,17 @@ class CRFEvaluator:
                     error_types['boundary_errors'] += 1
                 
                 # Collect error patterns
-                if y_gold.strip() != pred_segmented.strip():
-                    error_key = f"{y_gold.strip()} -> {pred_segmented.strip()}"
+                if y_gold_normalized.strip() != pred_normalized.strip():
+                    error_key = f"{y_gold_normalized.strip()} -> {pred_normalized.strip()}"
                     common_errors[error_key] += 1
                     
                     if len(error_examples) < 10:  # Keep top 10 examples
                         error_examples.append({
                             'input': x_raw,
-                            'true': y_gold.strip(),
-                            'pred': pred_segmented.strip(),
+                            'true': y_gold.strip(),  # Keep original for display
+                            'pred': pred_segmented.strip(),  # Keep original for display
+                            'true_normalized': y_gold_normalized.strip(),  # Add normalized for analysis
+                            'pred_normalized': pred_normalized.strip(),  # Add normalized for analysis
                             'error_type': self._classify_error_detailed(true_words, pred_words)
                         })
                 
